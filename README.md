@@ -1,6 +1,6 @@
-# 3D Architecture Simulator on Nostr
+# Vitruvius Constructions
 
-A web-based 3D architectural design tool that allows users to create, share, and explore architectural projects on the Nostr network.
+A web-based 3D architectural design tool that allows users to create, share, and explore architectural projects on the Nostr network. Named after Marcus Vitruvius Pollio, the ancient Roman architect and engineer who wrote the foundational treatise "De Architectura".
 
 ## Features
 
@@ -41,19 +41,47 @@ A web-based 3D architectural design tool that allows users to create, share, and
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+ 
-- A Nostr extension like [Alby](https://getalby.com/) or [nos2x](https://github.com/fiatjaf/nos2x) (optional, for sharing projects)
+- **Node.js 18+** - [Download here](https://nodejs.org/)
+- **npm** or **yarn** - Comes with Node.js
+- **A Nostr extension** (optional, for sharing projects):
+  - [Alby](https://getalby.com/) - Browser extension wallet
+  - [nos2x](https://github.com/fiatjaf/nos2x) - Simple Nostr extension
 
-### Installation
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Start development server: `npm run dev`
-4. Open http://localhost:5173 in your browser
+### Quick Start
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd vitruvius-constructions
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+
+4. **Open your browser**
+   - Navigate to [http://localhost:8080](http://localhost:8080)
+   - You should see the Vitruvius Constructions 3D Architecture Simulator
+
+### Available Scripts
+
+- `npm run dev` - Start development server with hot reload
+- `npm run build` - Build for production
+- `npm run build:dev` - Build for development
+- `npm run test` - Run TypeScript checks and build test
+- `npm run preview` - Preview production build locally
 
 ### Building for Production
 ```bash
 npm run build
 ```
+The built files will be in the `dist/` directory, ready to deploy to any static hosting service.
 
 ## Usage
 
