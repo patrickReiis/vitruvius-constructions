@@ -16,7 +16,7 @@ export function useNostrPublish(): UseMutationResult<NostrEvent> {
 
         // Add the client tag if it doesn't exist
         if (!tags.some((tag) => tag[0] === "client")) {
-          tags.push(["client", "3d-architecture-simulator"]);
+          tags.push(["client", "vitruvius-constructions"]);
         }
 
         const event = await user.signer.signEvent({

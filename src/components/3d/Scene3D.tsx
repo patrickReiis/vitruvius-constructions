@@ -7,7 +7,7 @@ import { SceneLoader } from './SceneLoader';
 
 interface Scene3DProps {
   elements: BuildingElement[];
-  selectedElement?: string;
+  selectedElement?: string | null;
   onElementSelect?: (elementId: string) => void;
   onElementUpdate?: (elementId: string, updates: Partial<BuildingElement>) => void;
   viewMode?: 'perspective' | 'orthographic' | 'top' | 'front' | 'side';

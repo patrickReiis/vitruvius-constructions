@@ -12,7 +12,7 @@ export interface BuildingElement {
   scale: Vector3;
   color: string;
   material: string;
-  properties: Record<string, any>;
+  properties: Record<string, string | number | boolean>;
 }
 
 export interface ArchitecturalProject {

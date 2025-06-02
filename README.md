@@ -67,7 +67,7 @@ A web-based 3D architectural design tool that allows users to create, share, and
 
 4. **Open your browser**
    - Navigate to [http://localhost:8080](http://localhost:8080)
-   - You should see the Vitruvius Constructions 3D Architecture Simulator
+   - You should see the Vitruvius Constructions interface
 
 ### Available Scripts
 

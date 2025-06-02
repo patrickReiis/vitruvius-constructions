@@ -1,7 +1,7 @@
 {
-  "name": "mkstack",
-  "title": "MKStack",
-  "description": "Build Nostr apps in minutes with this React framework",
+  "name": "vitruvius-constructions",
+  "title": "Vitruvius Constructions",
+  "description": "A web-based 3D architectural design tool that allows users to create, share, and explore architectural projects on the Nostr network",
   "uri": "git+https://gitlab.com/soapbox-pub/mkstack.git",
   "image": "https://gitlab.com/-/project/69048882/uploads/0a9e3a19f2901d5c772952c1de10ce4f/image.png",
   "commands": [

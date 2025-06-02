@@ -24,7 +24,7 @@ import { useNavigate } from 'react-router-dom';
 const defaultProject: ArchitecturalProject = {
   id: crypto.randomUUID(),
   name: 'New Architecture Project',
-  description: 'A modern architectural design created with the 3D Architecture Simulator',
+  description: 'A modern architectural design created with Vitruvius Constructions',
   author: 'anonymous',
   created_at: Date.now(),
   updated_at: Date.now(),
@@ -212,7 +212,7 @@ export function ArchitectureSimulator() {
       ...project,
       exportedAt: new Date().toISOString(),
       version: '1.0',
-      software: '3D Architecture Simulator'
+      software: 'Vitruvius Constructions'
     };
     
     const dataStr = JSON.stringify(exportData, null, 2);
@@ -246,7 +246,7 @@ export function ArchitectureSimulator() {
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-bold flex items-center gap-2">
               <Zap className="h-6 w-6 text-primary" />
-              3D Architecture Simulator
+              Vitruvius Constructions
             </h1>
             
             <Badge variant="secondary" className="hidden sm:flex">
@@ -341,7 +341,7 @@ export function ArchitectureSimulator() {
             selectedElement={selectedElement}
             onElementSelect={setSelectedElement}
             onElementUpdate={updateElement}
-            viewMode={viewMode as any}
+            viewMode={viewMode as 'perspective' | 'orthographic' | 'top' | 'front' | 'side'}
           />
           
           {/* Scene Info Overlay */}

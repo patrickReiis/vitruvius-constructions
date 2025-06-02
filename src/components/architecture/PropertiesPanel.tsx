@@ -10,7 +10,7 @@ import { Settings, Palette, Ruler, RotateCw } from 'lucide-react';
 import { BuildingElement } from '@/types/architecture';
 
 interface PropertiesPanelProps {
-  selectedElement: BuildingElement | null;
+  selectedElement: BuildingElement | null | undefined;
   onElementUpdate: (elementId: string, updates: Partial<BuildingElement>) => void;
 }
 

@@ -27,7 +27,7 @@ interface BuildingToolbarProps {
   onToolSelect: (toolId: string) => void;
   onAddElement: (type: BuildingElement['type']) => void;
   onViewModeChange: (mode: string) => void;
-  selectedElement?: BuildingElement;
+  selectedElement?: BuildingElement | null;
   onElementAction: (action: 'delete' | 'copy' | 'reset') => void;
 }
 
