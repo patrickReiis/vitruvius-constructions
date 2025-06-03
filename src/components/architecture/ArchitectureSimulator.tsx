@@ -96,6 +96,18 @@ export function ArchitectureSimulator() {
   const { user } = useCurrentUser();
   const navigate = useNavigate();
 
+  // Add ESC key handler to unselect element
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectedElement) {
+        setSelectedElement(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [selectedElement]);
+
   const selectedElementData = selectedElement 
     ? project.elements.find(el => el.id === selectedElement) 
     : null;
@@ -364,7 +376,7 @@ export function ArchitectureSimulator() {
               </div>
               {selectedElementData && (
                 <div className="text-xs text-muted-foreground">
-                  💡 Drag to move • Use panel for precision
+                  💡 Drag to move • ESC to unselect • Use panel for precision
                 </div>
               )}
             </div>
