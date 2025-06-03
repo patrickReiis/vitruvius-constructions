@@ -341,7 +341,8 @@ export function ArchitectureSimulator() {
             selectedElement={selectedElement}
             onElementSelect={setSelectedElement}
             onElementUpdate={updateElement}
-            viewMode={viewMode as 'perspective' | 'orthographic' | 'top' | 'front' | 'side'}
+            viewMode={viewMode as 'perspective' | 'orthographic' | 'top' | 'front' | 'side' | 'custom'}
+            onCameraMoved={() => setViewMode('custom')}
           />
           
           {/* Scene Info Overlay */}
@@ -350,7 +351,7 @@ export function ArchitectureSimulator() {
               <div className="flex items-center gap-2 text-sm">
                 <Info className="h-4 w-4" />
                 <span>
-                  {viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} View
+                  {viewMode === 'custom' ? 'Custom View' : `${viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} View`}
                 </span>
                 {selectedElementData && (
                   <>

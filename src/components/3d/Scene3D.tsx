@@ -1,18 +1,20 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Environment, PerspectiveCamera, TransformControls } from '@react-three/drei';
-import { Suspense, useRef } from 'react';
+import { Suspense, useRef, useEffect } from 'react';
 import { BuildingElement } from '@/types/architecture';
 import { BuildingElementMesh } from './BuildingElementMesh';
 import { SceneLoader } from './SceneLoader';
 import { useThree } from '@react-three/fiber';
 import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
+import * as THREE from 'three';
 
 interface Scene3DProps {
   elements: BuildingElement[];
   selectedElement?: string | null;
   onElementSelect?: (elementId: string) => void;
   onElementUpdate?: (elementId: string, updates: Partial<BuildingElement>) => void;
-  viewMode?: 'perspective' | 'orthographic' | 'top' | 'front' | 'side';
+  viewMode?: 'perspective' | 'orthographic' | 'top' | 'front' | 'side' | 'custom';
+  onCameraMoved?: () => void;
 }
 
 // Transform Controls Wrapper Component
@@ -56,27 +58,79 @@ function TransformControlsWrapper({
   ) : null;
 }
 
+// Camera Controller Component to detect camera movement
+function CameraController({ 
+  viewMode, 
+  onCameraMoved,
+  orbitControlsRef
+}: { 
+  viewMode: string;
+  onCameraMoved?: () => void;
+  orbitControlsRef: React.MutableRefObject<OrbitControlsType | null>;
+}) {
+  const { camera } = useThree();
+  const previousViewMode = useRef(viewMode);
+
+  useEffect(() => {
+    if (!orbitControlsRef.current) return;
+    const controls = orbitControlsRef.current;
+    
+    // Step 1: Check if we switched to a new preset view
+    const isPresetView = viewMode !== 'custom';
+    const viewModeChanged = viewMode !== previousViewMode.current;
+    
+    if (isPresetView && viewModeChanged) {
+      // Step 2: Move camera to the preset position
+      const cameraPositions = {
+        perspective: { position: [10, 10, 10], target: [0, 2, 0] },
+        top: { position: [0, 20, 0], target: [0, 0, 0] },
+        front: { position: [0, 5, 15], target: [0, 2, 0] },
+        side: { position: [15, 5, 0], target: [0, 2, 0] }
+      };
+      
+      const preset = cameraPositions[viewMode as keyof typeof cameraPositions];
+      if (preset) {
+        camera.position.set(...preset.position as [number, number, number]);
+        controls.target.set(...preset.target as [number, number, number]);
+        controls.update();
+      }
+    }
+    
+    // Step 3: Listen for manual camera movement
+    const handleCameraMove = () => {
+      // If we're in a preset view and the camera moves, switch to custom view
+      if (viewMode !== 'custom') {
+        onCameraMoved?.();
+      }
+    };
+    
+    // Add listener after a small delay to avoid triggering on the preset movement
+    const timer = setTimeout(() => {
+      controls.addEventListener('change', handleCameraMove);
+    }, 100);
+    
+    // Remember current view mode
+    previousViewMode.current = viewMode;
+    
+    // Cleanup
+    return () => {
+      clearTimeout(timer);
+      controls.removeEventListener('change', handleCameraMove);
+    };
+  }, [camera, viewMode, onCameraMoved, orbitControlsRef]);
+
+  return null;
+}
+
 export function Scene3D({ 
   elements, 
   selectedElement, 
   onElementSelect, 
   onElementUpdate,
-  viewMode = 'perspective' 
+  viewMode = 'perspective',
+  onCameraMoved
 }: Scene3DProps) {
   const orbitControls = useRef<OrbitControlsType | null>(null);
-  
-  const getCameraPosition = () => {
-    switch (viewMode) {
-      case 'top':
-        return [0, 20, 0] as [number, number, number];
-      case 'front':
-        return [0, 5, 15] as [number, number, number];
-      case 'side':
-        return [15, 5, 0] as [number, number, number];
-      default:
-        return [10, 10, 10] as [number, number, number];
-    }
-  };
 
   const selectedElementData = selectedElement ? elements.find(el => el.id === selectedElement) : null;
 
@@ -86,8 +140,15 @@ export function Scene3D({
         <Suspense fallback={<SceneLoader />}>
           <PerspectiveCamera 
             makeDefault 
-            position={getCameraPosition()} 
+            position={[10, 10, 10]} 
             fov={60}
+          />
+          
+          {/* Camera Controller */}
+          <CameraController 
+            viewMode={viewMode} 
+            onCameraMoved={onCameraMoved}
+            orbitControlsRef={orbitControls}
           />
           
           {/* Lighting */}
