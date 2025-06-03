@@ -27,15 +27,15 @@ export function BuildingElementMesh({
       case 'wall':
         return <boxGeometry args={[scale.x, scale.y, scale.z]} />;
       case 'floor':
-        return <boxGeometry args={[scale.x, 0.1, scale.z]} />;
+        return <boxGeometry args={[scale.x, scale.y, scale.z]} />;
       case 'roof':
         return <coneGeometry args={[scale.x, scale.y, 4]} />;
       case 'window':
-        return <boxGeometry args={[scale.x, scale.y, 0.1]} />;
+        return <boxGeometry args={[scale.x, scale.y, scale.z]} />;
       case 'door':
-        return <boxGeometry args={[scale.x, scale.y, 0.2]} />;
+        return <boxGeometry args={[scale.x, scale.y, scale.z]} />;
       case 'column':
-        return <cylinderGeometry args={[scale.x, scale.x, scale.y, 8]} />;
+        return <cylinderGeometry args={[(scale.x + scale.z) / 2, (scale.x + scale.z) / 2, scale.y, 8]} />;
       case 'beam':
         return <boxGeometry args={[scale.x, scale.y, scale.z]} />;
       case 'stairs':
