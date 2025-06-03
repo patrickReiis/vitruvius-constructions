@@ -152,6 +152,11 @@ export function Scene3D({
             minDistance={2}
             maxDistance={50}
             target={[0, 2, 0]}
+            screenSpacePanning={false}
+            zoomToCursor={true}
+            zoomSpeed={1.5}
+            enableDamping={true}
+            dampingFactor={0.05}
           />
         </Suspense>
       </Canvas>
