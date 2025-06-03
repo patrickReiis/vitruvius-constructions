@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { Mesh } from 'three';
-import { useFrame } from '@react-three/fiber';
 import { BuildingElement } from '@/types/architecture';
 
 interface BuildingElementMeshProps {
@@ -19,11 +18,7 @@ export function BuildingElementMesh({
   const meshRef = useRef<Mesh>(null);
   const [hovered, setHovered] = useState(false);
 
-  useFrame(() => {
-    if (meshRef.current && isSelected) {
-      meshRef.current.rotation.y += 0.01;
-    }
-  });
+
 
   const getGeometry = () => {
     const { scale } = element;
