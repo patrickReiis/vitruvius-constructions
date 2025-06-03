@@ -63,6 +63,7 @@ export function BuildingElementMesh({
   return (
     <mesh
       ref={meshRef}
+      name={`element-${element.id}`}
       position={[element.position.x, element.position.y, element.position.z]}
       rotation={[element.rotation.x, element.rotation.y, element.rotation.z]}
       onClick={(e) => {

@@ -1,9 +1,11 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid, Environment, PerspectiveCamera } from '@react-three/drei';
-import { Suspense } from 'react';
+import { OrbitControls, Grid, Environment, PerspectiveCamera, TransformControls } from '@react-three/drei';
+import { Suspense, useRef } from 'react';
 import { BuildingElement } from '@/types/architecture';
 import { BuildingElementMesh } from './BuildingElementMesh';
 import { SceneLoader } from './SceneLoader';
+import { useThree } from '@react-three/fiber';
+import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
 
 interface Scene3DProps {
   elements: BuildingElement[];
@@ -13,6 +15,47 @@ interface Scene3DProps {
   viewMode?: 'perspective' | 'orthographic' | 'top' | 'front' | 'side';
 }
 
+// Transform Controls Wrapper Component
+function TransformControlsWrapper({ 
+  selectedElement, 
+  onUpdate, 
+  orbitControls 
+}: { 
+  selectedElement: BuildingElement;
+  onUpdate?: (elementId: string, updates: Partial<BuildingElement>) => void;
+  orbitControls: React.MutableRefObject<OrbitControlsType | null>;
+}) {
+  const { scene } = useThree();
+  
+  // Find the selected mesh in the scene
+  const selectedMesh = scene.getObjectByName(`element-${selectedElement.id}`);
+  
+  return selectedMesh ? (
+    <TransformControls
+      object={selectedMesh}
+      mode="translate"
+      size={0.8}
+      onMouseDown={() => {
+        if (orbitControls.current) orbitControls.current.enabled = false;
+      }}
+      onMouseUp={() => {
+        if (orbitControls.current) orbitControls.current.enabled = true;
+      }}
+      onChange={(e) => {
+        if (e && selectedMesh) {
+          onUpdate?.(selectedElement.id, {
+            position: {
+              x: selectedMesh.position.x,
+              y: selectedMesh.position.y,
+              z: selectedMesh.position.z
+            }
+          });
+        }
+      }}
+    />
+  ) : null;
+}
+
 export function Scene3D({ 
   elements, 
   selectedElement, 
@@ -20,6 +63,8 @@ export function Scene3D({
   onElementUpdate,
   viewMode = 'perspective' 
 }: Scene3DProps) {
+  const orbitControls = useRef<OrbitControlsType | null>(null);
+  
   const getCameraPosition = () => {
     switch (viewMode) {
       case 'top':
@@ -32,6 +77,8 @@ export function Scene3D({
         return [10, 10, 10] as [number, number, number];
     }
   };
+
+  const selectedElementData = selectedElement ? elements.find(el => el.id === selectedElement) : null;
 
   return (
     <div className="w-full h-full bg-gradient-to-b from-sky-200 to-sky-100 dark:from-slate-800 dark:to-slate-900">
@@ -87,8 +134,18 @@ export function Scene3D({
             />
           ))}
           
+          {/* Transform Controls for Selected Element */}
+          {selectedElementData && (
+            <TransformControlsWrapper
+              selectedElement={selectedElementData}
+              onUpdate={onElementUpdate}
+              orbitControls={orbitControls}
+            />
+          )}
+          
           {/* Controls */}
           <OrbitControls
+            ref={orbitControls}
             enablePan={true}
             enableZoom={true}
             enableRotate={true}

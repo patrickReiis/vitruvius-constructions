@@ -346,18 +346,25 @@ export function ArchitectureSimulator() {
           
           {/* Scene Info Overlay */}
           <Card className="absolute top-4 left-4 p-3 bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-2 text-sm">
-              <Info className="h-4 w-4" />
-              <span>
-                {viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} View
-              </span>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm">
+                <Info className="h-4 w-4" />
+                <span>
+                  {viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} View
+                </span>
+                {selectedElementData && (
+                  <>
+                    <Separator orientation="vertical" className="h-4" />
+                    <Badge variant="outline" className="text-xs">
+                      {selectedElementData.type}
+                    </Badge>
+                  </>
+                )}
+              </div>
               {selectedElementData && (
-                <>
-                  <Separator orientation="vertical" className="h-4" />
-                  <Badge variant="outline" className="text-xs">
-                    {selectedElementData.type}
-                  </Badge>
-                </>
+                <div className="text-xs text-muted-foreground">
+                  💡 Drag to move • Use panel for precision
+                </div>
               )}
             </div>
           </Card>
