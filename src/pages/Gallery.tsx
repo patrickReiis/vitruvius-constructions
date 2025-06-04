@@ -60,7 +60,9 @@ const Gallery = () => {
               </h1>
             </div>
 
-            <LoginArea />
+            <div className="scale-100">
+              <LoginArea />
+            </div>
           </div>
         </div>
       </div>

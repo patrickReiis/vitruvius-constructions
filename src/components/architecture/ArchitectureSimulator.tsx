@@ -339,7 +339,9 @@ export function ArchitectureSimulator() {
               )}
             </Button>
 
-            <LoginArea />
+            <div className="scale-100">
+              <LoginArea />
+            </div>
           </div>
         </div>
       </div>
