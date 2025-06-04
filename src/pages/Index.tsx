@@ -1,7 +1,7 @@
-import { ArchitectureSimulator } from '@/components/architecture/ArchitectureSimulator';
+import Landing from './Landing';
 
 const Index = () => {
-  return <ArchitectureSimulator />;
+  return <Landing />;
 };
 
 export default Index;

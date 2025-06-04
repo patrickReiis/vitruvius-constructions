@@ -1,33 +1,32 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ArchitectureSimulator } from '@/components/architecture/ArchitectureSimulator';
 import { ProjectGallery } from '@/components/architecture/ProjectGallery';
-import { LoginArea } from '@/components/auth/LoginArea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { 
-  ArrowLeft, 
   Building, 
   User, 
   Calendar, 
   Download,
   Grid3X3,
-  Tag
+  Tag,
+  Sparkles
 } from 'lucide-react';
 import { ArchitecturalProject } from '@/types/architecture';
 import { useAuthor } from '@/hooks/useAuthor';
 
-const Gallery = () => {
-  const navigate = useNavigate();
+const Create = () => {
   const [selectedProject, setSelectedProject] = useState<ArchitecturalProject | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const handleProjectLoad = (project: ArchitecturalProject) => {
     // Store the project in localStorage for the main app to load
     localStorage.setItem('loadedProject', JSON.stringify(project));
-    navigate('/create');
+    // The simulator should automatically pick this up and load it
+    window.location.reload(); // Reload to trigger the load
   };
 
   const handleProjectPreview = (project: ArchitecturalProject) => {
@@ -37,47 +36,32 @@ const Gallery = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/create')}
-                className="flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Simulator
-              </Button>
-              
-              <Separator orientation="vertical" className="h-6" />
-              
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Building className="h-6 w-6 text-primary" />
-                Project Gallery
-              </h1>
-            </div>
-
-            <LoginArea />
-          </div>
-        </div>
+      {/* Main Simulator Section */}
+      <div className="h-screen">
+        <ArchitectureSimulator />
       </div>
 
-      {/* Content */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Discover Architecture Projects</h2>
-          <p className="text-muted-foreground">
-            Browse and load 3D architectural projects shared by the community on Nostr.
-          </p>
-        </div>
+      {/* Gallery Section */}
+      <div className="border-t bg-gradient-to-br from-muted/10 to-background">
+        <div className="container mx-auto px-4 py-12">
+          {/* Section Header */}
+          <div className="text-center mb-8 space-y-4">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Sparkles className="h-6 w-6 text-primary" />
+              <h2 className="text-3xl font-bold">Community Gallery</h2>
+              <Sparkles className="h-6 w-6 text-primary" />
+            </div>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Discover amazing architectural projects from the community. Click any project to preview details or load it into your simulator.
+            </p>
+          </div>
 
-        <ProjectGallery
-          onProjectSelect={handleProjectPreview}
-          onProjectLoad={handleProjectLoad}
-        />
+          {/* Gallery Component */}
+          <ProjectGallery
+            onProjectSelect={handleProjectPreview}
+            onProjectLoad={handleProjectLoad}
+          />
+        </div>
       </div>
 
       {/* Project Preview Dialog */}
@@ -241,4 +225,4 @@ function ProjectPreviewDialog({
   );
 }
 
-export default Gallery;
+export default Create;

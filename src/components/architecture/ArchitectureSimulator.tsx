@@ -277,7 +277,10 @@ export function ArchitectureSimulator() {
       <div className="border-b bg-card">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold flex items-center gap-2">
+            <h1 
+              className="text-xl font-bold flex items-center gap-2 cursor-pointer hover:text-primary transition-colors" 
+              onClick={() => navigate('/')}
+            >
               <Zap className="h-6 w-6 text-primary" />
               Vitruvius Constructions
             </h1>
@@ -346,7 +349,7 @@ export function ArchitectureSimulator() {
         {/* Left Panel */}
         {leftPanelOpen && !isFullscreen && (
           <div className="border-r bg-card flex flex-col">
-            <div className="p-4 space-y-4">
+            <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
               <ProjectManager
                 project={project}
                 onProjectUpdate={(updates) => setProject(prev => ({ ...prev, ...updates }))}
