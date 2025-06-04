@@ -14,6 +14,7 @@ interface Scene3DProps {
   onElementSelect?: (elementId: string) => void;
   onElementUpdate?: (elementId: string, updates: Partial<BuildingElement>) => void;
   viewMode?: 'perspective' | 'orthographic' | 'top' | 'front' | 'side' | 'custom';
+  viewDirection?: 'north' | 'south' | 'east' | 'west';
   onCameraMoved?: () => void;
 }
 
@@ -61,39 +62,56 @@ function TransformControlsWrapper({
 // Camera Controller Component to detect camera movement
 function CameraController({ 
   viewMode, 
+  viewDirection,
   onCameraMoved,
   orbitControlsRef
 }: { 
   viewMode: string;
+  viewDirection?: 'north' | 'south' | 'east' | 'west';
   onCameraMoved?: () => void;
   orbitControlsRef: React.MutableRefObject<OrbitControlsType | null>;
 }) {
   const { camera } = useThree();
-  const previousViewMode = useRef(viewMode);
 
   useEffect(() => {
     if (!orbitControlsRef.current) return;
     const controls = orbitControlsRef.current;
     
-    // Step 1: Check if we switched to a new preset view
+    // Step 1: Check if we're in a preset view
     const isPresetView = viewMode !== 'custom';
-    const viewModeChanged = viewMode !== previousViewMode.current;
     
-    if (isPresetView && viewModeChanged) {
+    if (isPresetView) {
       // Step 2: Move camera to the preset position
-      const cameraPositions = {
-        perspective: { position: [10, 10, 10], target: [0, 2, 0] },
-        top: { position: [0, 20, 0], target: [0, 0, 0] },
-        front: { position: [0, 5, 15], target: [0, 2, 0] },
-        side: { position: [15, 5, 0], target: [0, 2, 0] }
-      };
+      let cameraPosition: [number, number, number];
+      let targetPosition: [number, number, number] = [0, 2, 0];
       
-      const preset = cameraPositions[viewMode as keyof typeof cameraPositions];
-      if (preset) {
-        camera.position.set(...preset.position as [number, number, number]);
-        controls.target.set(...preset.target as [number, number, number]);
-        controls.update();
+      switch (viewMode) {
+        case 'perspective':
+          cameraPosition = [10, 10, 10];
+          break;
+        case 'top':
+          cameraPosition = [0, 20, 0];
+          targetPosition = [0, 0, 0];
+          break;
+        case 'front':
+          // Use viewDirection to determine which front to show
+          cameraPosition = viewDirection === 'north' 
+            ? [0, 5, -15]  // North view (looking from negative Z)
+            : [0, 5, 15];  // South view (looking from positive Z)
+          break;
+        case 'side':
+          // Use viewDirection to determine which side to show
+          cameraPosition = viewDirection === 'west'
+            ? [-15, 5, 0]  // West view (looking from negative X)
+            : [15, 5, 0];   // East view (looking from positive X)
+          break;
+        default:
+          cameraPosition = [10, 10, 10];
       }
+      
+      camera.position.set(...cameraPosition);
+      controls.target.set(...targetPosition);
+      controls.update();
     }
     
     // Step 3: Listen for manual camera movement
@@ -109,15 +127,12 @@ function CameraController({
       controls.addEventListener('change', handleCameraMove);
     }, 100);
     
-    // Remember current view mode
-    previousViewMode.current = viewMode;
-    
     // Cleanup
     return () => {
       clearTimeout(timer);
       controls.removeEventListener('change', handleCameraMove);
     };
-  }, [camera, viewMode, onCameraMoved, orbitControlsRef]);
+  }, [camera, viewMode, viewDirection, onCameraMoved, orbitControlsRef]);
 
   return null;
 }
@@ -128,6 +143,7 @@ export function Scene3D({
   onElementSelect, 
   onElementUpdate,
   viewMode = 'perspective',
+  viewDirection,
   onCameraMoved
 }: Scene3DProps) {
   const orbitControls = useRef<OrbitControlsType | null>(null);
@@ -147,6 +163,7 @@ export function Scene3D({
           {/* Camera Controller */}
           <CameraController 
             viewMode={viewMode} 
+            viewDirection={viewDirection}
             onCameraMoved={onCameraMoved}
             orbitControlsRef={orbitControls}
           />

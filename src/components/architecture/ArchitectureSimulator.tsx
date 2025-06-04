@@ -89,6 +89,7 @@ export function ArchitectureSimulator() {
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<string>('perspective');
+  const [viewDirection, setViewDirection] = useState<'north' | 'south' | 'east' | 'west'>('south');
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -107,6 +108,26 @@ export function ArchitectureSimulator() {
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [selectedElement]);
+
+  // Handle view mode changes with toggle logic
+  const handleViewModeChange = useCallback((mode: string) => {
+    if (mode === viewMode && (mode === 'front' || mode === 'side')) {
+      // Toggle direction if clicking the same front/side view
+      if (mode === 'front') {
+        setViewDirection(viewDirection === 'south' ? 'north' : 'south');
+      } else if (mode === 'side') {
+        setViewDirection(viewDirection === 'east' ? 'west' : 'east');
+      }
+    } else {
+      // Reset to default directions when switching to a new view
+      if (mode === 'front') {
+        setViewDirection('south');
+      } else if (mode === 'side') {
+        setViewDirection('east');
+      }
+    }
+    setViewMode(mode);
+  }, [viewMode, viewDirection]);
 
   const selectedElementData = selectedElement 
     ? project.elements.find(el => el.id === selectedElement) 
@@ -338,7 +359,7 @@ export function ArchitectureSimulator() {
                 selectedTool={selectedTool}
                 onToolSelect={setSelectedTool}
                 onAddElement={addElement}
-                onViewModeChange={setViewMode}
+                onViewModeChange={handleViewModeChange}
                 selectedElement={selectedElementData}
                 onElementAction={handleElementAction}
               />
@@ -354,6 +375,7 @@ export function ArchitectureSimulator() {
             onElementSelect={setSelectedElement}
             onElementUpdate={updateElement}
             viewMode={viewMode as 'perspective' | 'orthographic' | 'top' | 'front' | 'side' | 'custom'}
+            viewDirection={viewDirection}
             onCameraMoved={() => setViewMode('custom')}
           />
           
