@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Save, 
   FolderOpen, 
@@ -16,29 +17,31 @@ import {
   FileText,
   Calendar,
   User,
-  Tag
+  Tag,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  Cloud,
+  HardDrive
 } from 'lucide-react';
 import { ArchitecturalProject } from '@/types/architecture';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { useNostrPublish } from '@/hooks/useNostrPublish';
+import { useProjectManager } from '@/hooks/useProjectManager';
 
 interface ProjectManagerProps {
   project: ArchitecturalProject;
   onProjectUpdate: (updates: Partial<ArchitecturalProject>) => void;
-  onProjectSave: () => void;
   onProjectLoad: (project: ArchitecturalProject) => void;
-  onProjectExport: () => void;
 }
 
 export function ProjectManager({ 
   project, 
   onProjectUpdate, 
-  onProjectSave,
   onProjectLoad,
-  onProjectExport
 }: ProjectManagerProps) {
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [newProjectData, setNewProjectData] = useState({
     name: '',
     description: '',
@@ -47,7 +50,14 @@ export function ProjectManager({
   });
 
   const { user } = useCurrentUser();
-  const { mutate: publishProject } = useNostrPublish();
+  const {
+    isLoading,
+    error,
+    saveToNostr,
+    downloadLocal,
+    loadFromFile,
+    clearError,
+  } = useProjectManager();
 
   const handleNewProject = () => {
     const newProject: ArchitecturalProject = {
@@ -71,44 +81,51 @@ export function ProjectManager({
     setNewProjectData({ name: '', description: '', style: '', tags: '' });
   };
 
-  const handleSaveToNostr = () => {
+  const handleSaveToNostr = async () => {
     if (!user) return;
 
-    const projectData = {
-      ...project,
-      updated_at: Date.now()
-    };
-
-    publishProject({
-      kind: 30023, // Long-form content (NIP-23) for architectural projects
-      content: JSON.stringify(projectData),
-      tags: [
-        ['d', project.id], // Replaceable event identifier
-        ['title', project.name],
-        ['summary', project.description],
-        ['t', 'architecture'],
-        ['t', '3d-design'],
-        ...project.metadata.tags.map(tag => ['t', tag])
-      ]
-    });
-
-    setIsSaveDialogOpen(false);
+    try {
+      await saveToNostr(project);
+      setSuccessMessage('Project saved to Nostr successfully!');
+      setIsSaveDialogOpen(false);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      // Error is handled by the hook
+      console.error('Save failed:', err);
+    }
   };
 
-  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleDownloadLocal = () => {
+    try {
+      downloadLocal(project);
+      setSuccessMessage('Project downloaded successfully!');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      // Error is handled by the hook
+      console.error('Download failed:', err);
+    }
+  };
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const projectData = JSON.parse(e.target?.result as string);
-        onProjectLoad(projectData);
-      } catch (error) {
-        console.error('Failed to import project:', error);
-      }
-    };
-    reader.readAsText(file);
+  const handleLoadFromFile = async () => {
+    try {
+      const loadedProject = await loadFromFile();
+      onProjectLoad(loadedProject);
+      setSuccessMessage('Project loaded successfully!');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      // Error is handled by the hook
+      console.error('Load failed:', err);
+    }
+  };
+
+  const handleDismissError = () => {
+    clearError();
   };
 
   return (
@@ -121,6 +138,34 @@ export function ProjectManager({
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {/* Success Message */}
+        {successMessage && (
+          <Alert className="border-green-200 bg-green-50">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">
+              {successMessage}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>{error}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDismissError}
+                className="h-auto p-1"
+              >
+                ×
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Project Info */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
@@ -154,7 +199,7 @@ export function ProjectManager({
 
         <Separator />
 
-        {/* Project Actions */}
+        {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-2">
           <Dialog open={isNewProjectOpen} onOpenChange={setIsNewProjectOpen}>
             <DialogTrigger asChild>
@@ -215,66 +260,73 @@ export function ProjectManager({
             </DialogContent>
           </Dialog>
 
-          <div>
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleFileImport}
-              className="hidden"
-              id="file-import"
-            />
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex items-center gap-1 w-full"
-              onClick={() => document.getElementById('file-import')?.click()}
-            >
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1"
+            onClick={handleLoadFromFile}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
               <FolderOpen className="h-4 w-4" />
-              Load
-            </Button>
-          </div>
-
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex items-center gap-1"
-            onClick={onProjectSave}
-          >
-            <Save className="h-4 w-4" />
-            Save
-          </Button>
-
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex items-center gap-1"
-            onClick={onProjectExport}
-          >
-            <Download className="h-4 w-4" />
-            Export
+            )}
+            Load
           </Button>
         </div>
 
-        {user && (
-          <>
-            <Separator />
-            
+        <Separator />
+
+        {/* Save & Storage Actions */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-sm font-medium">
+            <span>Save & Storage</span>
+          </div>
+
+          {/* Local Download */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full flex items-center gap-2"
+            onClick={handleDownloadLocal}
+            disabled={isLoading}
+          >
+            <HardDrive className="h-4 w-4" />
+            <span>Download Local JSON</span>
+            <Download className="h-3 w-3 ml-auto" />
+          </Button>
+
+          {/* Nostr Save */}
+          {user ? (
             <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="w-full flex items-center gap-1">
-                  <Share2 className="h-4 w-4" />
-                  Share on Nostr
+                <Button 
+                  size="sm" 
+                  className="w-full flex items-center gap-2"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Cloud className="h-4 w-4" />
+                  )}
+                  <span>Save to Nostr</span>
+                  <Save className="h-3 w-3 ml-auto" />
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Share Project on Nostr</DialogTitle>
+                  <DialogTitle>Save Project to Nostr</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    This will publish your architectural project to the Nostr network, 
-                    making it discoverable by other architects and designers.
-                  </p>
+                  <Alert>
+                    <Share2 className="h-4 w-4" />
+                    <AlertDescription>
+                      This will create/update an addressable event on Nostr, making your project 
+                      discoverable and shareable with the community.
+                    </AlertDescription>
+                  </Alert>
                   
                   <div className="space-y-2">
                     <Label>Project Details</Label>
@@ -282,19 +334,51 @@ export function ProjectManager({
                       <p className="font-medium">{project.name}</p>
                       <p className="text-sm text-muted-foreground">{project.description}</p>
                       <p className="text-xs text-muted-foreground">
-                        {project.elements.length} elements
+                        {project.elements.length} elements • {project.metadata.style} style
                       </p>
+                      {project.metadata.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {project.metadata.tags.map((tag, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   
-                  <Button onClick={handleSaveToNostr} className="w-full">
-                    Publish to Nostr
+                  <Button 
+                    onClick={handleSaveToNostr} 
+                    className="w-full"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Publishing...
+                      </>
+                    ) : (
+                      <>
+                        <Cloud className="h-4 w-4 mr-2" />
+                        Publish to Nostr
+                      </>
+                    )}
                   </Button>
                 </div>
               </DialogContent>
             </Dialog>
-          </>
-        )}
+          ) : (
+            <div className="p-3 bg-muted rounded-lg text-center">
+              <p className="text-sm text-muted-foreground mb-2">
+                Login required to save to Nostr
+              </p>
+              <Button variant="outline" size="sm" className="text-xs">
+                Login to Share Projects
+              </Button>
+            </div>
+          )}
+        </div>
 
         <Separator />
 
@@ -311,6 +395,10 @@ export function ProjectManager({
           <div className="flex justify-between">
             <span>Units:</span>
             <span className="capitalize">{project.metadata.units}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Last Updated:</span>
+            <span>{new Date(project.updated_at).toLocaleDateString()}</span>
           </div>
         </div>
       </CardContent>

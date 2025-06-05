@@ -226,40 +226,6 @@ export function ArchitectureSimulator() {
     }
   }, [selectedElement, deleteElement, copyElement, resetElement]);
 
-  const handleProjectSave = useCallback(() => {
-    const dataStr = JSON.stringify(project, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${project.name.replace(/\s+/g, '_')}.json`;
-    link.click();
-    
-    URL.revokeObjectURL(url);
-  }, [project]);
-
-  const handleProjectExport = useCallback(() => {
-    // Export as a more detailed format with metadata
-    const exportData = {
-      ...project,
-      exportedAt: new Date().toISOString(),
-      version: '1.0',
-      software: 'Vitruvius Constructions'
-    };
-    
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${project.name.replace(/\s+/g, '_')}_export.json`;
-    link.click();
-    
-    URL.revokeObjectURL(url);
-  }, [project]);
-
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen);
     if (!isFullscreen) {
@@ -355,9 +321,7 @@ export function ArchitectureSimulator() {
               <ProjectManager
                 project={project}
                 onProjectUpdate={(updates) => setProject(prev => ({ ...prev, ...updates }))}
-                onProjectSave={handleProjectSave}
                 onProjectLoad={setProject}
-                onProjectExport={handleProjectExport}
               />
               
               <BuildingToolbar
