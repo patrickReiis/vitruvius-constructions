@@ -14,9 +14,21 @@ import {
   Share
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const Landing = () => {
   const navigate = useNavigate();
+  const { user } = useCurrentUser();
+
+  const handleStartBuilding = () => {
+    // If user is logged in, show project picker
+    // If not logged in, go directly to create
+    if (user) {
+      navigate('/projects');
+    } else {
+      navigate('/create');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-red-50/30">
@@ -52,7 +64,7 @@ const Landing = () => {
           {/* CTA Button */}
           <div className="pt-4">
             <Button 
-              onClick={() => navigate('/create')}
+              onClick={handleStartBuilding}
               size="lg"
               className="text-lg px-8 py-6 rounded-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg hover:shadow-xl transition-all duration-300 group text-white"
             >

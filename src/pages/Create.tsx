@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { ArchitectureSimulator } from '@/components/architecture/ArchitectureSimulator';
 import { ProjectGallery } from '@/components/architecture/ProjectGallery';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -19,6 +20,10 @@ import { ArchitecturalProject } from '@/types/architecture';
 import { useAuthor } from '@/hooks/useAuthor';
 
 const Create = () => {
+  const { projectId } = useParams<{ projectId?: string }>();
+  // Note: projectId from URL is currently used for future features
+  // The actual project loading is handled via localStorage by the simulator
+  
   const [selectedProject, setSelectedProject] = useState<ArchitecturalProject | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
