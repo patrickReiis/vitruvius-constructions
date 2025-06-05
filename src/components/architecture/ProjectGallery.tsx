@@ -13,15 +13,63 @@ import {
   Eye,
   Filter,
   Grid3X3,
-  Building
+  Building,
+  Copy,
+  Check
 } from 'lucide-react';
-import { useArchitecturalProjects } from '@/hooks/useArchitecturalProjects';
+import { useVitruviusProjects } from '@/hooks/useVitruviusProjects';
 import { useAuthor } from '@/hooks/useAuthor';
+import { useToast } from '@/hooks/useToast';
 import { ArchitecturalProject } from '@/types/architecture';
 
 interface ProjectGalleryProps {
   onProjectSelect: (project: ArchitecturalProject) => void;
   onProjectLoad: (project: ArchitecturalProject) => void;
+}
+
+// Component for copying event ID
+function EventIdButton({ eventId }: { eventId: string | undefined }) {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const copyEventId = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!eventId) return;
+
+    try {
+      await navigator.clipboard.writeText(eventId);
+      setCopied(true);
+      toast({
+        title: "Event ID Copied",
+        description: "Nostr event ID copied to clipboard",
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy event ID to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (!eventId) return null;
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={copyEventId}
+      className="h-6 px-2 text-xs"
+    >
+      {copied ? (
+        <Check className="h-3 w-3 mr-1" />
+      ) : (
+        <Copy className="h-3 w-3 mr-1" />
+      )}
+      {copied ? "Copied" : "Event ID"}
+    </Button>
+  );
 }
 
 function ProjectCard({ 
@@ -43,8 +91,11 @@ function ProjectCard({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <CardTitle className="text-lg line-clamp-1">{project.name}</CardTitle>
-            <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+            <div className="flex items-center justify-between mb-1">
+              <CardTitle className="text-lg line-clamp-1">{project.name}</CardTitle>
+              <EventIdButton eventId={project.eventId} />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="h-3 w-3" />
               <span>{authorName}</span>
               <Calendar className="h-3 w-3 ml-2" />
@@ -53,7 +104,7 @@ function ProjectCard({
           </div>
           
           {project.metadata.style && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs ml-2">
               {project.metadata.style}
             </Badge>
           )}
@@ -129,7 +180,7 @@ export function ProjectGallery({ onProjectSelect, onProjectLoad }: ProjectGaller
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStyle, setSelectedStyle] = useState<string>('');
   
-  const { data: projects, isLoading, error } = useArchitecturalProjects();
+  const { data: projects, isLoading, error } = useVitruviusProjects();
 
   const filteredProjects = projects?.filter(project => {
     const matchesSearch = !searchTerm || 

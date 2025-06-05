@@ -29,6 +29,7 @@ export interface ArchitecturalProject {
     units: 'metric' | 'imperial';
     tags: string[];
   };
+  eventId?: string; // Optional Nostr event ID for projects loaded from the network
 }
 
 export interface Tool {

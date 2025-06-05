@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { ArchitecturalProject } from '@/types/architecture';
+import { VITRUVIUS_KIND, parseProjectFromNostrEvent } from '@/lib/projectStorage';
 
 export function useArchitecturalProjects() {
   const { nostr } = useNostr();
@@ -8,13 +9,12 @@ export function useArchitecturalProjects() {
   return useQuery({
     queryKey: ['architectural-projects'],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(10000)]);
       
-      // Query for architectural projects (kind 30023 with architecture tags)
+      // Query for Vitruvius architectural projects (kind 39266)
       const events = await nostr.query([
         { 
-          kinds: [30023], 
-          '#t': ['architecture', '3d-design'],
+          kinds: [VITRUVIUS_KIND], 
           limit: 50 
         }
       ], { signal });
@@ -23,27 +23,28 @@ export function useArchitecturalProjects() {
 
       for (const event of events) {
         try {
-          const projectData = JSON.parse(event.content);
+          const project = parseProjectFromNostrEvent(event.content);
           
-          // Validate that it's an architectural project
-          if (projectData.elements && Array.isArray(projectData.elements)) {
-            projects.push({
-              ...projectData,
-              author: event.pubkey,
-              created_at: event.created_at * 1000, // Convert to milliseconds
-              updated_at: event.created_at * 1000
-            });
-          }
+          // Ensure we have the event metadata
+          const projectWithNostrData: ArchitecturalProject = {
+            ...project,
+            author: event.pubkey, // Use event author as canonical source
+            created_at: event.created_at * 1000, // Convert to milliseconds
+            eventId: event.id, // Include Nostr event ID
+          };
+          
+          projects.push(projectWithNostrData);
         } catch (error) {
-          console.warn('Failed to parse architectural project:', error);
+          console.warn('Failed to parse project from event:', event.id, error);
+          // Skip invalid projects
         }
       }
 
-      // Sort by creation date (newest first)
-      return projects.sort((a, b) => b.created_at - a.created_at);
+      // Sort by newest first
+      return projects.sort((a, b) => b.updated_at - a.updated_at);
     },
-    staleTime: 60000, // 1 minute
-    gcTime: 300000, // 5 minutes
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -53,12 +54,12 @@ export function useArchitecturalProject(projectId: string) {
   return useQuery({
     queryKey: ['architectural-project', projectId],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(3000)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
       
-      // Query for specific project by replaceable event identifier
+      // Query for specific project by addressable event identifier
       const events = await nostr.query([
         { 
-          kinds: [30023], 
+          kinds: [VITRUVIUS_KIND], 
           '#d': [projectId],
           limit: 1 
         }
@@ -71,20 +72,20 @@ export function useArchitecturalProject(projectId: string) {
       const event = events[0];
       
       try {
-        const projectData = JSON.parse(event.content);
+        const project = parseProjectFromNostrEvent(event.content);
         
         return {
-          ...projectData,
+          ...project,
           author: event.pubkey,
           created_at: event.created_at * 1000,
-          updated_at: event.created_at * 1000
+          eventId: event.id, // Include Nostr event ID
         } as ArchitecturalProject;
       } catch (error) {
         throw new Error('Failed to parse project data');
       }
     },
     enabled: !!projectId,
-    staleTime: 60000,
-    gcTime: 300000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
   });
 }

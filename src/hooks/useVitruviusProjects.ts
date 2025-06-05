@@ -36,6 +36,7 @@ export function useVitruviusProjects() {
             ...project,
             author: event.pubkey, // Use event author as canonical source
             created_at: event.created_at * 1000, // Convert to milliseconds
+            eventId: event.id, // Include Nostr event ID
           };
           
           projects.push(projectWithNostrData);
@@ -82,6 +83,7 @@ export function useVitruviusProjectsByAuthor(authorPubkey: string) {
             ...project,
             author: event.pubkey,
             created_at: event.created_at * 1000,
+            eventId: event.id, // Include Nostr event ID
           };
           
           projects.push(projectWithNostrData);
@@ -127,6 +129,7 @@ export function useVitruviusProjectsByTag(tag: string) {
             ...project,
             author: event.pubkey,
             created_at: event.created_at * 1000,
+            eventId: event.id, // Include Nostr event ID
           };
           
           projects.push(projectWithNostrData);

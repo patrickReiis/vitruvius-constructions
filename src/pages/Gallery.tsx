@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/useToast';
 import { 
   ArrowLeft, 
   Building, 
@@ -14,7 +15,9 @@ import {
   Calendar, 
   Download,
   Grid3X3,
-  Tag
+  Tag,
+  Copy,
+  Check
 } from 'lucide-react';
 import { ArchitecturalProject } from '@/types/architecture';
 import { useAuthor } from '@/hooks/useAuthor';
@@ -112,6 +115,8 @@ function ProjectPreviewDialog({
   onLoad: () => void;
 }) {
   const author = useAuthor(project?.author || '');
+  const { toast } = useToast();
+  const [eventIdCopied, setEventIdCopied] = useState(false);
   
   if (!project) return null;
 
@@ -119,14 +124,51 @@ function ProjectPreviewDialog({
                     author.data?.metadata?.display_name || 
                     project.author.slice(0, 8);
 
+  const copyEventId = async () => {
+    if (!project.eventId) return;
+
+    try {
+      await navigator.clipboard.writeText(project.eventId);
+      setEventIdCopied(true);
+      toast({
+        title: "Event ID Copied",
+        description: "Nostr event ID copied to clipboard",
+      });
+      setTimeout(() => setEventIdCopied(false), 2000);
+    } catch (error) {
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy event ID to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Building className="h-5 w-5" />
-            {project.name}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <Building className="h-5 w-5" />
+              {project.name}
+            </DialogTitle>
+            {project.eventId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={copyEventId}
+                className="h-8 px-3 text-xs"
+              >
+                {eventIdCopied ? (
+                  <Check className="h-3 w-3 mr-1" />
+                ) : (
+                  <Copy className="h-3 w-3 mr-1" />
+                )}
+                {eventIdCopied ? "Copied" : "Copy Event ID"}
+              </Button>
+            )}
+          </div>
         </DialogHeader>
         
         <div className="space-y-6">
