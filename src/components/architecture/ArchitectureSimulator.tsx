@@ -252,11 +252,11 @@ export function ArchitectureSimulator() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/gallery')}
+              onClick={() => navigate('/projects')}
               className="flex items-center gap-1"
             >
               <Images className="h-4 w-4" />
-              <span className="hidden sm:inline">Gallery</span>
+              <span className="hidden sm:inline">Your Projects</span>
             </Button>
 
             {!isFullscreen && (
