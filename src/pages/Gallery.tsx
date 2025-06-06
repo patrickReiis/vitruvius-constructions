@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/useToast';
+import { setTransferProject } from '@/hooks/useProjectManager';
 import { 
   ArrowLeft, 
   Building, 
@@ -28,8 +29,8 @@ const Gallery = () => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const handleProjectLoad = (project: ArchitecturalProject) => {
-    // Store the project in localStorage for the main app to load
-    localStorage.setItem('loadedProject', JSON.stringify(project));
+    // Store the project in memory for the simulator to load
+    setTransferProject(project);
     navigate('/create');
   };
 

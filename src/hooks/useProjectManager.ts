@@ -31,6 +31,28 @@ interface UseProjectManagerReturn {
   clearError: () => void;
 }
 
+interface ProjectTransferState {
+  project: ArchitecturalProject | null;
+}
+
+// In-memory storage for project transfers between pages
+const transferState: ProjectTransferState = { project: null };
+
+// Helper functions for project transfer
+export function setTransferProject(project: ArchitecturalProject): void {
+  transferState.project = project;
+}
+
+export function getTransferProject(): ArchitecturalProject | null {
+  const project = transferState.project;
+  transferState.project = null; // Clear after getting
+  return project;
+}
+
+export function clearTransferProject(): void {
+  transferState.project = null;
+}
+
 export function useProjectManager(): UseProjectManagerReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,12 +75,8 @@ export function useProjectManager(): UseProjectManagerReturn {
         throw new ProjectStorageError('User must be logged in to save projects', 'nostr');
       }
 
-      // Generate or get existing vitruvius ID
-      let vitruviusId = localStorage.getItem(`vitruvius_id_${project.id}`);
-      if (!vitruviusId) {
-        vitruviusId = generateVitruviusId();
-        localStorage.setItem(`vitruvius_id_${project.id}`, vitruviusId);
-      }
+      // Generate unique vitruvius ID for this save operation
+      const vitruviusId = generateVitruviusId();
 
       // Create event content
       const eventContent = JSON.stringify({
@@ -73,9 +91,6 @@ export function useProjectManager(): UseProjectManagerReturn {
         content: eventContent,
         tags: createProjectTags(project, vitruviusId),
       });
-
-      // Store the event ID for future reference
-      localStorage.setItem(`nostr_event_${project.id}`, event.id);
 
       return event;
     },

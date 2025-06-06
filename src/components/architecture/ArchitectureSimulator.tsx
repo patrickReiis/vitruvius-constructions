@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { getTransferProject } from '@/hooks/useProjectManager';
 import { 
   PanelLeftOpen, 
   PanelRightOpen, 
@@ -73,17 +74,11 @@ const defaultProject: ArchitecturalProject = {
 export function ArchitectureSimulator() {
   const [project, setProject] = useState<ArchitecturalProject>(defaultProject);
 
-  // Check for loaded project from gallery
+  // Check for transferred project from gallery/projects
   useEffect(() => {
-    const loadedProject = localStorage.getItem('loadedProject');
-    if (loadedProject) {
-      try {
-        const parsedProject = JSON.parse(loadedProject);
-        setProject(parsedProject);
-        localStorage.removeItem('loadedProject'); // Clear after loading
-      } catch (error) {
-        console.error('Failed to load project from localStorage:', error);
-      }
+    const transferredProject = getTransferProject();
+    if (transferredProject) {
+      setProject(transferredProject);
     }
   }, []);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);

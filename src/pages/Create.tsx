@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { setTransferProject } from '@/hooks/useProjectManager';
 import { 
   Building, 
   User, 
@@ -22,16 +23,16 @@ import { useAuthor } from '@/hooks/useAuthor';
 const Create = () => {
   const { projectId } = useParams<{ projectId?: string }>();
   // Note: projectId from URL is currently used for future features
-  // The actual project loading is handled via localStorage by the simulator
+  // Project loading is now handled via in-memory transfer by the simulator
   
   const [selectedProject, setSelectedProject] = useState<ArchitecturalProject | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const handleProjectLoad = (project: ArchitecturalProject) => {
-    // Store the project in localStorage for the main app to load
-    localStorage.setItem('loadedProject', JSON.stringify(project));
-    // The simulator should automatically pick this up and load it
-    window.location.reload(); // Reload to trigger the load
+    // Store the project in memory for the simulator to load
+    setTransferProject(project);
+    // Trigger a re-render by scrolling to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleProjectPreview = (project: ArchitecturalProject) => {

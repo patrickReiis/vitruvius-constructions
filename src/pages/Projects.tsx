@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useVitruviusProjectsByAuthor } from '@/hooks/useVitruviusProjects';
-import { useProjectManager } from '@/hooks/useProjectManager';
+import { useProjectManager, setTransferProject } from '@/hooks/useProjectManager';
 import { ArchitecturalProject } from '@/types/architecture';
 import { LoginArea } from '@/components/auth/LoginArea';
 
@@ -37,8 +37,8 @@ export function ProjectPicker() {
   };
 
   const handleLoadProject = (project: ArchitecturalProject) => {
-    // Store project in localStorage for the simulator to pick up
-    localStorage.setItem('loadedProject', JSON.stringify(project));
+    // Store project in memory for the simulator to pick up
+    setTransferProject(project);
     navigate(`/create/${project.id}`);
   };
 
@@ -46,7 +46,7 @@ export function ProjectPicker() {
     try {
       setIsLoadingFile(true);
       const project = await loadFromFile();
-      localStorage.setItem('loadedProject', JSON.stringify(project));
+      setTransferProject(project);
       navigate(`/create/${project.id}`);
     } catch (err) {
       console.error('Failed to load project from file:', err);
