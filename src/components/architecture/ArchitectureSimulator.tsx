@@ -337,7 +337,7 @@ export function ArchitectureSimulator() {
         )}
 
         {/* 3D Scene */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative z-0 min-w-0">
           <Scene3D
             elements={project.elements}
             selectedElement={selectedElement}
