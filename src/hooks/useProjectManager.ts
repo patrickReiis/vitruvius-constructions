@@ -38,9 +38,15 @@ interface ProjectTransferState {
 // In-memory storage for project transfers between pages
 const transferState: ProjectTransferState = { project: null };
 
+// Event emitter for project transfers
+type ProjectTransferListener = (project: ArchitecturalProject) => void;
+const transferListeners: Set<ProjectTransferListener> = new Set();
+
 // Helper functions for project transfer
 export function setTransferProject(project: ArchitecturalProject): void {
   transferState.project = project;
+  // Notify all listeners
+  transferListeners.forEach(listener => listener(project));
 }
 
 export function getTransferProject(): ArchitecturalProject | null {
@@ -51,6 +57,40 @@ export function getTransferProject(): ArchitecturalProject | null {
 
 export function clearTransferProject(): void {
   transferState.project = null;
+}
+
+// Subscribe to transfer events
+export function onProjectTransfer(listener: ProjectTransferListener): () => void {
+  transferListeners.add(listener);
+  return () => {
+    transferListeners.delete(listener);
+  };
+}
+
+// Working project functions for recovery/autosave features
+let workingProject: ArchitecturalProject | null = null;
+let workingProjectLastModified: number | null = null;
+
+export function hasWorkingProject(): boolean {
+  return workingProject !== null;
+}
+
+export function getWorkingProject(): ArchitecturalProject | null {
+  return workingProject;
+}
+
+export function getWorkingProjectLastModified(): number | null {
+  return workingProjectLastModified;
+}
+
+export function setWorkingProject(project: ArchitecturalProject): void {
+  workingProject = project;
+  workingProjectLastModified = Date.now();
+}
+
+export function clearWorkingProject(): void {
+  workingProject = null;
+  workingProjectLastModified = null;
 }
 
 export function useProjectManager(): UseProjectManagerReturn {

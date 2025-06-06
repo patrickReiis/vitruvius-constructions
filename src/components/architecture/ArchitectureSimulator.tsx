@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { getTransferProject } from '@/hooks/useProjectManager';
+import { useProjectTransfer } from '@/hooks/useProjectTransfer';
 import { 
   PanelLeftOpen, 
   PanelRightOpen, 
@@ -74,13 +74,10 @@ const defaultProject: ArchitecturalProject = {
 export function ArchitectureSimulator() {
   const [project, setProject] = useState<ArchitecturalProject>(defaultProject);
 
-  // Check for transferred project from gallery/projects
-  useEffect(() => {
-    const transferredProject = getTransferProject();
-    if (transferredProject) {
-      setProject(transferredProject);
-    }
-  }, []);
+  // Handle project transfers from gallery/projects pages
+  useProjectTransfer((transferredProject) => {
+    setProject(transferredProject);
+  });
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<string>('perspective');
