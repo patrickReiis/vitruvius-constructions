@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { EventIdButton } from '@/components/ui/event-id-button';
 import { 
   Plus, 
   Building, 
@@ -297,17 +298,20 @@ function ProjectCard({
           <CardTitle className="text-lg group-hover:text-primary transition-colors cursor-pointer" onClick={onSelect}>
             {project.name}
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="h-8 w-8 p-0"
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <EventIdButton eventId={project.eventId} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="h-8 w-8 p-0"
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
         </div>
         {project.description && (
           <p className="text-sm text-muted-foreground line-clamp-2">

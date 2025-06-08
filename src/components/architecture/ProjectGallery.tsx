@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { EventIdButton } from '@/components/ui/event-id-button';
 import { 
   Search, 
   Calendar, 
@@ -13,63 +14,15 @@ import {
   Eye,
   Filter,
   Grid3X3,
-  Building,
-  Copy,
-  Check
+  Building
 } from 'lucide-react';
 import { useVitruviusProjects } from '@/hooks/useVitruviusProjects';
 import { useAuthor } from '@/hooks/useAuthor';
-import { useToast } from '@/hooks/useToast';
 import { ArchitecturalProject } from '@/types/architecture';
 
 interface ProjectGalleryProps {
   onProjectSelect: (project: ArchitecturalProject) => void;
   onProjectLoad: (project: ArchitecturalProject) => void;
-}
-
-// Component for copying event ID
-function EventIdButton({ eventId }: { eventId: string | undefined }) {
-  const [copied, setCopied] = useState(false);
-  const { toast } = useToast();
-
-  const copyEventId = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!eventId) return;
-
-    try {
-      await navigator.clipboard.writeText(eventId);
-      setCopied(true);
-      toast({
-        title: "Event ID Copied",
-        description: "Nostr event ID copied to clipboard",
-      });
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      toast({
-        title: "Copy Failed",
-        description: "Failed to copy event ID to clipboard",
-        variant: "destructive",
-      });
-    }
-  };
-
-  if (!eventId) return null;
-
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={copyEventId}
-      className="h-6 px-2 text-xs"
-    >
-      {copied ? (
-        <Check className="h-3 w-3 mr-1" />
-      ) : (
-        <Copy className="h-3 w-3 mr-1" />
-      )}
-      {copied ? "Copied" : "Event ID"}
-    </Button>
-  );
 }
 
 function ProjectCard({ 
