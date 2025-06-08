@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Plus, 
@@ -17,7 +18,8 @@ import {
   FolderOpen,
   Loader2,
   AlertCircle,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useVitruviusProjectsByAuthor } from '@/hooks/useVitruviusProjects';
@@ -29,8 +31,13 @@ export function ProjectPicker() {
   const navigate = useNavigate();
   const { user } = useCurrentUser();
   const { data: projects, isLoading, error } = useVitruviusProjectsByAuthor(user?.pubkey || '');
-  const { loadFromFile } = useProjectManager();
+  const { loadFromFile, deleteFromNostr } = useProjectManager();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    project: ArchitecturalProject | null;
+  }>({ open: false, project: null });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleCreateNew = () => {
     navigate('/create');
@@ -52,6 +59,21 @@ export function ProjectPicker() {
       console.error('Failed to load project from file:', err);
     } finally {
       setIsLoadingFile(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!deleteDialog.project) return;
+    
+    try {
+      setIsDeleting(true);
+      await deleteFromNostr(deleteDialog.project);
+      setDeleteDialog({ open: false, project: null });
+      // Refresh will happen automatically via query invalidation in the hook
+    } catch (err) {
+      console.error('Failed to delete project:', err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -175,6 +197,7 @@ export function ProjectPicker() {
                 key={project.id} 
                 project={project} 
                 onSelect={() => handleLoadProject(project)}
+                onDelete={() => setDeleteDialog({ open: true, project })}
               />
             ))}
           </div>
@@ -195,30 +218,104 @@ export function ProjectPicker() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialog.open} onOpenChange={(open) => !isDeleting && setDeleteDialog({ open, project: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+          </DialogHeader>
+          {deleteDialog.project && (
+            <div className="space-y-4">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  This will request deletion of your project from Nostr relays. 
+                  Some relays may not honor deletion requests, and cached copies may still exist.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="space-y-2">
+                <p className="font-medium">{deleteDialog.project.name}</p>
+                {deleteDialog.project.description && (
+                  <p className="text-sm text-muted-foreground">{deleteDialog.project.description}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {deleteDialog.project.elements.length} elements
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteDialog({ open: false, project: null })}
+                  disabled={isDeleting}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive"
+                  onClick={handleDeleteProject} 
+                  disabled={isDeleting}
+                  className="flex-1"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Project
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 function ProjectCard({ 
   project, 
-  onSelect 
+  onSelect,
+  onDelete
 }: { 
   project: ArchitecturalProject; 
   onSelect: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <Card className="hover:shadow-lg transition-shadow cursor-pointer group" onClick={onSelect}>
+    <Card className="hover:shadow-lg transition-shadow group">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg group-hover:text-primary transition-colors">
-          {project.name}
-        </CardTitle>
+        <div className="flex items-start justify-between">
+          <CardTitle className="text-lg group-hover:text-primary transition-colors cursor-pointer" onClick={onSelect}>
+            {project.name}
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="h-8 w-8 p-0"
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
         {project.description && (
           <p className="text-sm text-muted-foreground line-clamp-2">
             {project.description}
           </p>
         )}
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 cursor-pointer" onClick={onSelect}>
         {/* Project Preview Area - Could add 3D thumbnail in future */}
         <div className="bg-muted/30 rounded-lg p-8 text-center border-2 border-dashed border-muted-foreground/20">
           <Building className="h-12 w-12 text-muted-foreground mx-auto mb-2" />

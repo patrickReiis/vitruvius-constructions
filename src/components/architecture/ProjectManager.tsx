@@ -22,7 +22,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Cloud,
-  HardDrive
+  HardDrive,
+  Trash2
 } from 'lucide-react';
 import { ArchitecturalProject } from '@/types/architecture';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -41,6 +42,7 @@ export function ProjectManager({
 }: ProjectManagerProps) {
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [newProjectData, setNewProjectData] = useState({
     name: '',
@@ -56,6 +58,7 @@ export function ProjectManager({
     saveToNostr,
     downloadLocal,
     loadFromFile,
+    deleteFromNostr,
     clearError,
   } = useProjectManager();
 
@@ -126,6 +129,41 @@ export function ProjectManager({
 
   const handleDismissError = () => {
     clearError();
+  };
+
+  const handleDeleteFromNostr = async () => {
+    if (!user) return;
+
+    try {
+      await deleteFromNostr(project);
+      setSuccessMessage('Project deleted from Nostr successfully!');
+      setIsDeleteDialogOpen(false);
+      
+      // Create a new blank project after deletion
+      const newProject: ArchitecturalProject = {
+        id: crypto.randomUUID(),
+        name: 'New Architecture Project',
+        description: '',
+        author: user?.pubkey || 'anonymous',
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        elements: [],
+        metadata: {
+          style: 'Modern',
+          scale: 1,
+          units: 'metric',
+          tags: []
+        }
+      };
+      
+      onProjectLoad(newProject);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      // Error is handled by the hook
+      console.error('Delete failed:', err);
+    }
   };
 
   return (
@@ -299,75 +337,154 @@ export function ProjectManager({
 
           {/* Nostr Save */}
           {user ? (
-            <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
-              <DialogTrigger asChild>
-                <Button 
-                  size="sm" 
-                  className="w-full flex items-center gap-2"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Cloud className="h-4 w-4" />
-                  )}
-                  <span>Save to Nostr</span>
-                  <Save className="h-3 w-3 ml-auto" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Save Project to Nostr</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <Alert>
-                    <Share2 className="h-4 w-4" />
-                    <AlertDescription>
-                      This will create/update an addressable event on Nostr, making your project 
-                      discoverable and shareable with the community.
-                    </AlertDescription>
-                  </Alert>
-                  
-                  <div className="space-y-2">
-                    <Label>Project Details</Label>
-                    <div className="bg-muted p-3 rounded-lg space-y-1">
-                      <p className="font-medium">{project.name}</p>
-                      <p className="text-sm text-muted-foreground">{project.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {project.elements.length} elements • {project.metadata.style} style
-                      </p>
-                      {project.metadata.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-1">
-                          {project.metadata.tags.map((tag, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
+            <>
+              <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
+                <DialogTrigger asChild>
                   <Button 
-                    onClick={handleSaveToNostr} 
-                    className="w-full"
+                    size="sm" 
+                    className="w-full flex items-center gap-2"
                     disabled={isLoading}
                   >
                     {isLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Publishing...
-                      </>
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <>
-                        <Cloud className="h-4 w-4 mr-2" />
-                        Publish to Nostr
-                      </>
+                      <Cloud className="h-4 w-4" />
                     )}
+                    <span>Save to Nostr</span>
+                    <Save className="h-3 w-3 ml-auto" />
                   </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Save Project to Nostr</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <Alert>
+                      <Share2 className="h-4 w-4" />
+                      <AlertDescription>
+                        This will create/update an addressable event on Nostr, making your project 
+                        discoverable and shareable with the community.
+                      </AlertDescription>
+                    </Alert>
+                    
+                    <div className="space-y-2">
+                      <Label>Project Details</Label>
+                      <div className="bg-muted p-3 rounded-lg space-y-1">
+                        <p className="font-medium">{project.name}</p>
+                        <p className="text-sm text-muted-foreground">{project.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {project.elements.length} elements • {project.metadata.style} style
+                        </p>
+                        {project.metadata.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {project.metadata.tags.map((tag, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      onClick={handleSaveToNostr} 
+                      className="w-full"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Publishing...
+                        </>
+                      ) : (
+                        <>
+                          <Cloud className="h-4 w-4 mr-2" />
+                          Publish to Nostr
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Delete from Nostr */}
+              {project.author === user.pubkey ? (
+                <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="destructive"
+                      size="sm" 
+                      className="w-full flex items-center gap-2"
+                      disabled={isLoading}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Delete from Nostr</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Delete Project from Nostr</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          This will request deletion of your project from Nostr relays. 
+                          Note that some relays may not honor deletion requests, and cached 
+                          copies may still exist.
+                        </AlertDescription>
+                      </Alert>
+                      
+                      <div className="space-y-2">
+                        <Label>Project to Delete</Label>
+                        <div className="bg-muted p-3 rounded-lg space-y-1">
+                          <p className="font-medium">{project.name}</p>
+                          <p className="text-sm text-muted-foreground">{project.description}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {project.elements.length} elements
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsDeleteDialogOpen(false)}
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          variant="destructive"
+                          onClick={handleDeleteFromNostr} 
+                          className="flex-1"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Project
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <div className="p-3 bg-muted rounded-lg text-center">
+                  <p className="text-sm text-muted-foreground">
+                    You can only delete your own projects
+                  </p>
                 </div>
-              </DialogContent>
-            </Dialog>
+              )}
+            </>
           ) : (
             <div className="p-3 bg-muted rounded-lg text-center">
               <p className="text-sm text-muted-foreground mb-2">

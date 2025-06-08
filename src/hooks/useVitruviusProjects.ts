@@ -31,12 +31,16 @@ export function useVitruviusProjects() {
         try {
           const project = parseProjectFromNostrEvent(event.content);
           
+          // Extract the 'd' tag value
+          const dTag = event.tags.find(([tagName]) => tagName === 'd')?.[1];
+          
           // Ensure we have the event metadata
           const projectWithNostrData: ArchitecturalProject = {
             ...project,
             author: event.pubkey, // Use event author as canonical source
             created_at: event.created_at * 1000, // Convert to milliseconds
             eventId: event.id, // Include Nostr event ID
+            nostrAddress: dTag, // Include the 'd' tag value for addressable events
           };
           
           projects.push(projectWithNostrData);
@@ -79,11 +83,16 @@ export function useVitruviusProjectsByAuthor(authorPubkey: string) {
       for (const event of events) {
         try {
           const project = parseProjectFromNostrEvent(event.content);
+          
+          // Extract the 'd' tag value
+          const dTag = event.tags.find(([tagName]) => tagName === 'd')?.[1];
+          
           const projectWithNostrData: ArchitecturalProject = {
             ...project,
             author: event.pubkey,
             created_at: event.created_at * 1000,
             eventId: event.id, // Include Nostr event ID
+            nostrAddress: dTag, // Include the 'd' tag value
           };
           
           projects.push(projectWithNostrData);
@@ -125,11 +134,16 @@ export function useVitruviusProjectsByTag(tag: string) {
       for (const event of events) {
         try {
           const project = parseProjectFromNostrEvent(event.content);
+          
+          // Extract the 'd' tag value
+          const dTag = event.tags.find(([tagName]) => tagName === 'd')?.[1];
+          
           const projectWithNostrData: ArchitecturalProject = {
             ...project,
             author: event.pubkey,
             created_at: event.created_at * 1000,
             eventId: event.id, // Include Nostr event ID
+            nostrAddress: dTag, // Include the 'd' tag value
           };
           
           projects.push(projectWithNostrData);

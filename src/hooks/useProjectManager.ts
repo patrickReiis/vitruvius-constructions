@@ -28,6 +28,7 @@ interface UseProjectManagerReturn {
   downloadLocal: (project: ArchitecturalProject) => void;
   loadFromFile: () => Promise<ArchitecturalProject>;
   loadFromNostr: (eventId: string) => Promise<ArchitecturalProject>;
+  deleteFromNostr: (project: ArchitecturalProject) => Promise<void>;
   clearError: () => void;
 }
 
@@ -115,8 +116,9 @@ export function useProjectManager(): UseProjectManagerReturn {
         throw new ProjectStorageError('User must be logged in to save projects', 'nostr');
       }
 
-      // Generate unique vitruvius ID for this save operation
-      const vitruviusId = generateVitruviusId();
+      // Use existing nostrAddress if available (for updates), otherwise use project.id
+      // This ensures we update the same addressable event rather than creating a new one
+      const vitruviusId = project.nostrAddress || project.id;
 
       // Create event content
       const eventContent = JSON.stringify({
@@ -205,6 +207,13 @@ export function useProjectManager(): UseProjectManagerReturn {
         throw new ProjectStorageError('Invalid project data', 'validation');
       }
 
+      // Extract the 'd' tag value
+      const dTag = event.tags.find(([tagName]) => tagName === 'd')?.[1];
+
+      // Add the event ID and d-tag to the project for future reference
+      project.eventId = event.id;
+      project.nostrAddress = dTag;
+
       return project;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load project from Nostr';
@@ -221,9 +230,120 @@ export function useProjectManager(): UseProjectManagerReturn {
     await saveToNostrMutation.mutateAsync(project);
   }, [saveToNostrMutation]);
 
+  /**
+   * Deletes project from Nostr using kind 5 deletion request
+   */
+  const deleteFromNostrMutation = useMutation({
+    mutationFn: async (project: ArchitecturalProject) => {
+      if (!user?.signer) {
+        throw new ProjectStorageError('User must be logged in to delete projects', 'nostr');
+      }
+
+      // If the project has an eventId, use it directly
+      if (project.eventId) {
+        // Create deletion request event (kind 5) using the known event ID
+        const deletionEvent = await publishEvent({
+          kind: 5, // Deletion request kind
+          content: 'Project deleted by author',
+          tags: [
+            ['e', project.eventId], // Reference the event to delete
+            ['k', String(VITRUVIUS_KIND)], // Kind of the referenced event
+          ],
+        });
+        return deletionEvent;
+      }
+
+      // Otherwise, try to find the project on Nostr
+      // We need the project's Nostr event ID to delete it
+      // Query for the project's event first
+      const vitruviusId = project.id; // Using project ID as the d-tag identifier
+      
+      const events = await nostr.query(
+        [{
+          kinds: [VITRUVIUS_KIND],
+          authors: [user.pubkey],
+          '#d': [vitruviusId],
+          limit: 1
+        }],
+        { signal: AbortSignal.timeout(5000) }
+      );
+
+      if (events.length === 0) {
+        // Try to find by content matching (fallback)
+        const allUserEvents = await nostr.query(
+          [{
+            kinds: [VITRUVIUS_KIND],
+            authors: [user.pubkey],
+            limit: 100
+          }],
+          { signal: AbortSignal.timeout(5000) }
+        );
+
+        const matchingEvent = allUserEvents.find(event => {
+          try {
+            const eventProject = JSON.parse(event.content) as ArchitecturalProject;
+            return eventProject.id === project.id;
+          } catch {
+            return false;
+          }
+        });
+
+        if (!matchingEvent) {
+          throw new ProjectStorageError('Project not found on Nostr. It may not have been saved yet.', 'nostr');
+        }
+
+        const projectEvent = matchingEvent;
+        
+        // Create deletion request event (kind 5)
+        const deletionEvent = await publishEvent({
+          kind: 5, // Deletion request kind
+          content: 'Project deleted by author',
+          tags: [
+            ['e', projectEvent.id], // Reference the event to delete
+            ['k', String(VITRUVIUS_KIND)], // Kind of the referenced event
+            ['a', `${VITRUVIUS_KIND}:${user.pubkey}:${vitruviusId}`] // Reference the replaceable event
+          ],
+        });
+
+        return deletionEvent;
+      }
+
+      const projectEvent = events[0];
+
+      // Create deletion request event (kind 5)
+      const deletionEvent = await publishEvent({
+        kind: 5, // Deletion request kind
+        content: 'Project deleted by author',
+        tags: [
+          ['e', projectEvent.id], // Reference the event to delete
+          ['k', String(VITRUVIUS_KIND)], // Kind of the referenced event
+          ['a', `${VITRUVIUS_KIND}:${user.pubkey}:${vitruviusId}`] // Reference the replaceable event
+        ],
+      });
+
+      return deletionEvent;
+    },
+    onSuccess: () => {
+      // Invalidate related queries to refresh gallery
+      queryClient.invalidateQueries({ queryKey: ['vitruvius-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['gallery'] });
+    },
+    onError: (err) => {
+      console.error('Failed to delete project from Nostr:', err);
+      const message = err instanceof Error ? err.message : 'Failed to delete project from Nostr';
+      setError(message);
+    },
+  });
+
+  const deleteFromNostr = useCallback(async (project: ArchitecturalProject) => {
+    setError(null);
+    await deleteFromNostrMutation.mutateAsync(project);
+  }, [deleteFromNostrMutation]);
+
   return {
     // State
-    isLoading: isLoading || saveToNostrMutation.isPending,
+    isLoading: isLoading || saveToNostrMutation.isPending || deleteFromNostrMutation.isPending,
     error,
 
     // Actions
@@ -231,6 +351,7 @@ export function useProjectManager(): UseProjectManagerReturn {
     downloadLocal,
     loadFromFile,
     loadFromNostr,
+    deleteFromNostr,
     clearError,
   };
 }

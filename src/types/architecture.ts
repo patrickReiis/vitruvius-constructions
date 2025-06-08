@@ -30,6 +30,7 @@ export interface ArchitecturalProject {
     tags: string[];
   };
   eventId?: string; // Optional Nostr event ID for projects loaded from the network
+  nostrAddress?: string; // Optional Nostr 'd' tag value for addressable events
 }
 
 export interface Tool {

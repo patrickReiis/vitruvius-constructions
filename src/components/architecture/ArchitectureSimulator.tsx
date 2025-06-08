@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Scene3D } from '@/components/3d/Scene3D';
 import { BuildingToolbar } from './BuildingToolbar';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -20,63 +21,109 @@ import {
 } from 'lucide-react';
 import { BuildingElement, ArchitecturalProject } from '@/types/architecture';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { useNavigate } from 'react-router-dom';
 
-const defaultProject: ArchitecturalProject = {
-  id: crypto.randomUUID(),
-  name: 'New Architecture Project',
-  description: 'A modern architectural design created with Vitruvius Constructions',
-  author: 'anonymous',
-  created_at: Date.now(),
-  updated_at: Date.now(),
-  elements: [
-    // Sample floor
-    {
-      id: crypto.randomUUID(),
-      type: 'floor',
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      scale: { x: 8, y: 0.2, z: 8 },
-      color: '#e5e7eb',
-      material: 'concrete',
-      properties: {}
-    },
-    // Sample walls
-    {
-      id: crypto.randomUUID(),
-      type: 'wall',
-      position: { x: -4, y: 1.5, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      scale: { x: 0.2, y: 3, z: 8 },
-      color: '#f3f4f6',
-      material: 'concrete',
-      properties: {}
-    },
-    {
-      id: crypto.randomUUID(),
-      type: 'wall',
-      position: { x: 4, y: 1.5, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      scale: { x: 0.2, y: 3, z: 8 },
-      color: '#f3f4f6',
-      material: 'concrete',
-      properties: {}
-    }
-  ],
-  metadata: {
-    style: 'Modern',
-    scale: 1,
-    units: 'metric',
-    tags: ['sample', 'modern', 'residential']
+// Generate a stable default project ID that persists across component remounts
+const getOrCreateDefaultProjectId = () => {
+  const storageKey = 'vitruvius-default-project-id';
+  let projectId = localStorage.getItem(storageKey);
+  
+  if (!projectId) {
+    projectId = crypto.randomUUID();
+    localStorage.setItem(storageKey, projectId);
   }
+  
+  return projectId;
+};
+
+const createDefaultProject = (): ArchitecturalProject => {
+  const now = Date.now();
+  return {
+    id: getOrCreateDefaultProjectId(),
+    name: 'New Architecture Project',
+    description: 'A modern architectural design created with Vitruvius Constructions',
+    author: 'anonymous',
+    created_at: now,
+    updated_at: now,
+    elements: [
+      // Sample floor
+      {
+        id: crypto.randomUUID(),
+        type: 'floor',
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 8, y: 0.2, z: 8 },
+        color: '#e5e7eb',
+        material: 'concrete',
+        properties: {}
+      },
+      // Sample walls
+      {
+        id: crypto.randomUUID(),
+        type: 'wall',
+        position: { x: -4, y: 1.5, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 0.2, y: 3, z: 8 },
+        color: '#f3f4f6',
+        material: 'concrete',
+        properties: {}
+      },
+      {
+        id: crypto.randomUUID(),
+        type: 'wall',
+        position: { x: 4, y: 1.5, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 0.2, y: 3, z: 8 },
+        color: '#f3f4f6',
+        material: 'concrete',
+        properties: {}
+      }
+    ],
+    metadata: {
+      style: 'Modern',
+      scale: 1,
+      units: 'metric',
+      tags: ['sample', 'modern', 'residential']
+    }
+  };
 };
 
 export function ArchitectureSimulator() {
-  const [project, setProject] = useState<ArchitecturalProject>(defaultProject);
+  const { user } = useCurrentUser();
+  const navigate = useNavigate();
+  const { projectId } = useParams<{ projectId?: string }>();
+  
+  // Initialize project state with a function to avoid recreating default project on every render
+  const [project, setProject] = useState<ArchitecturalProject>(() => {
+    // Check if we have a projectId in the URL
+    if (projectId) {
+      // Create a project with the specified ID
+      // The actual project data will be loaded via project transfer or from saved state
+      return {
+        id: projectId,
+        name: 'New Architecture Project',
+        description: 'A modern architectural design created with Vitruvius Constructions',
+        author: user?.pubkey || 'anonymous',
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        elements: [],
+        metadata: {
+          style: 'Modern',
+          scale: 1,
+          units: 'metric',
+          tags: ['sample', 'modern', 'residential']
+        }
+      };
+    }
+    
+    // Otherwise create a default project
+    return createDefaultProject();
+  });
 
   // Handle project transfers from gallery/projects pages
   useProjectTransfer((transferredProject) => {
     setProject(transferredProject);
+    // Update the URL to reflect the new project
+    navigate(`/create/${transferredProject.id}`, { replace: true });
   });
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
@@ -86,8 +133,12 @@ export function ArchitectureSimulator() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const { user } = useCurrentUser();
-  const navigate = useNavigate();
+  // Update the URL when project changes
+  useEffect(() => {
+    if (project.id && !window.location.pathname.includes(project.id)) {
+      navigate(`/create/${project.id}`, { replace: true });
+    }
+  }, [project.id, navigate]);
 
   // Add ESC key handler to unselect element
   useEffect(() => {
