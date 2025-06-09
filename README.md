@@ -97,6 +97,7 @@ The built files will be in the `dist/` directory with both `index.html` and `404
 
 ### Keyboard Shortcuts
 - **ESC** - Unselect current element
+- **DEL** - Delete selected element
 - **Fullscreen button** - Toggle fullscreen mode (hides panels on mobile)
 
 ### Working with Views

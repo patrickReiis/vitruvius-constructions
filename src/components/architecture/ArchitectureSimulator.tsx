@@ -182,18 +182,6 @@ export function ArchitectureSimulator({
     setWorkingProject(project);
   }, [project.id, project, navigate]);
 
-  // Add ESC key handler to unselect element
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && selectedElement) {
-        setSelectedElement(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [selectedElement]);
-
   // Handle view mode changes with toggle logic
   const handleViewModeChange = useCallback((mode: string) => {
     if (mode === viewMode && (mode === 'front' || mode === 'side')) {
@@ -260,6 +248,22 @@ export function ArchitectureSimulator({
       setSelectedElement(null);
     }
   }, [selectedElement]);
+
+  // Add keyboard shortcuts for element manipulation (must be after deleteElement is defined)
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectedElement) {
+        setSelectedElement(null);
+      }
+      
+      if (event.key === 'Delete' && selectedElement) {
+        deleteElement(selectedElement);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [selectedElement, deleteElement]);
 
   const copyElement = useCallback((elementId: string) => {
     const element = project.elements.find(el => el.id === elementId);
@@ -460,7 +464,7 @@ export function ArchitectureSimulator({
               </div>
               {selectedElementData && (
                 <div className="text-xs text-muted-foreground">
-                  💡 Drag to move • ESC to unselect • Use panel for precision
+                  💡 Drag to move • ESC to unselect • DEL to delete • Use panel for precision
                 </div>
               )}
             </div>
