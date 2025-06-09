@@ -24,7 +24,7 @@ interface UseProjectManagerReturn {
   error: string | null;
   
   // Actions
-  saveToNostr: (project: ArchitecturalProject) => Promise<void>;
+  saveToNostr: (project: ArchitecturalProject) => Promise<ArchitecturalProject>;
   downloadLocal: (project: ArchitecturalProject) => void;
   loadFromFile: () => Promise<ArchitecturalProject>;
   loadFromNostr: (eventId: string) => Promise<ArchitecturalProject>;
@@ -147,12 +147,15 @@ export function useProjectManager(): UseProjectManagerReturn {
       // This ensures we update the same addressable event rather than creating a new one
       const vitruviusId = project.nostrAddress || project.id;
 
-      // Create event content
-      const eventContent = JSON.stringify({
+      // Create the updated project with current timestamp
+      const updatedProject = {
         ...project,
         author: user.pubkey, // Ensure author matches current user
         updated_at: Date.now()
-      });
+      };
+
+      // Create event content
+      const eventContent = JSON.stringify(updatedProject);
 
       // Create and publish the event using the standard hook
       const event = await publishEvent({
@@ -161,11 +164,11 @@ export function useProjectManager(): UseProjectManagerReturn {
         tags: createProjectTags(project, vitruviusId),
       });
 
-      return { event, project };
+      return { event, project: updatedProject };
     },
-    onSuccess: ({ project }) => {
-      // Mark project as saved
-      markProjectAsSaved(project);
+    onSuccess: ({ project: savedProject }) => {
+      // Mark project as saved using the updated project state
+      markProjectAsSaved(savedProject);
       
       // Invalidate related queries to refresh gallery
       queryClient.invalidateQueries({ queryKey: ['vitruvius-projects'] });
@@ -259,7 +262,8 @@ export function useProjectManager(): UseProjectManagerReturn {
   // Main save function that wraps the mutation
   const saveToNostr = useCallback(async (project: ArchitecturalProject) => {
     setError(null);
-    await saveToNostrMutation.mutateAsync(project);
+    const result = await saveToNostrMutation.mutateAsync(project);
+    return result.project; // Return the updated project
   }, [saveToNostrMutation]);
 
   /**

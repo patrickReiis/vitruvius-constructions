@@ -89,7 +89,25 @@ export function ProjectManager({
     if (!user) return;
 
     try {
-      await saveToNostr(project);
+      // Call save with the current project and get the updated project back
+      const savedProject = await saveToNostr(project);
+      
+      // Create the final project state that will be in the component
+      const finalProject = {
+        ...project,
+        author: savedProject.author,
+        updated_at: savedProject.updated_at
+      };
+      
+      // Update the parent component's project state with only the changed fields
+      onProjectUpdate({
+        author: savedProject.author,
+        updated_at: savedProject.updated_at
+      });
+      
+      // Make sure the saved state matches the component's final state
+      markProjectAsSaved(finalProject);
+      
       setSuccessMessage('Project saved to Nostr successfully!');
       setIsSaveDialogOpen(false);
       
