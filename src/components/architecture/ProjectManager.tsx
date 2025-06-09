@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { ArchitecturalProject } from '@/types/architecture';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { useProjectManager } from '@/hooks/useProjectManager';
+import { useProjectManager, markProjectAsSaved } from '@/hooks/useProjectManager';
 
 interface ProjectManagerProps {
   project: ArchitecturalProject;
@@ -79,6 +79,7 @@ export function ProjectManager({
       }
     };
 
+    markProjectAsSaved(newProject); // Mark new empty project as saved
     onProjectLoad(newProject);
     setIsNewProjectOpen(false);
     setNewProjectData({ name: '', description: '', style: '', tags: '' });
@@ -156,6 +157,7 @@ export function ProjectManager({
         }
       };
       
+      markProjectAsSaved(newProject); // Mark new empty project as saved
       onProjectLoad(newProject);
       
       // Clear success message after 3 seconds

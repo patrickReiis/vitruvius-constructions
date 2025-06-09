@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { EventIdButton } from '@/components/ui/event-id-button';
+import { useUnsavedChangesContext } from '@/hooks/useUnsavedChangesContext';
+import { useUnsavedChangesDialog } from './UnsavedChangesDialog';
 import { 
   Search, 
   Calendar, 
@@ -38,6 +40,27 @@ function ProjectCard({
   const authorName = author.data?.metadata?.name || 
                     author.data?.metadata?.display_name || 
                     project.author.slice(0, 8);
+
+  // Get unsaved changes context (available when inside simulator)
+  const unsavedChangesContext = useUnsavedChangesContext();
+  
+  // Set up dialog for load warning
+  const { 
+    isOpen: isLoadDialogOpen, 
+    showDialog: showLoadDialog, 
+    handleConfirm: handleLoadConfirm, 
+    handleCancel: handleLoadCancel, 
+    Dialog: LoadWarningDialog 
+  } = useUnsavedChangesDialog();
+
+  const handleLoad = () => {
+    const doLoad = () => {
+      onLoad();
+    };
+
+    // Check for unsaved changes before loading
+    unsavedChangesContext.checkUnsavedChangesBeforeAction(doLoad, showLoadDialog);
+  };
 
   return (
     <Card className="cursor-pointer hover:shadow-md transition-shadow">
@@ -116,7 +139,7 @@ function ProjectCard({
             size="sm" 
             onClick={(e) => {
               e.stopPropagation();
-              onLoad();
+              handleLoad();
             }}
             className="flex-1"
           >
@@ -125,6 +148,16 @@ function ProjectCard({
           </Button>
         </div>
       </CardContent>
+      
+      {/* Load Project Warning Dialog */}
+      <LoadWarningDialog 
+        isOpen={isLoadDialogOpen}
+        onConfirm={handleLoadConfirm}
+        onCancel={handleLoadCancel}
+        title="Load Project"
+        description={`You haven't saved your current work. Loading "${project.name}" will replace your current design. Are you sure you want to continue?`}
+        actionText="Load Project"
+      />
     </Card>
   );
 }

@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { setTransferProject } from '@/hooks/useProjectManager';
+import { UnsavedChangesProvider } from '@/hooks/useUnsavedChangesContext';
+import { useUnsavedChangesDialog } from '@/components/architecture/UnsavedChangesDialog';
 import { 
   Building, 
   User, 
@@ -28,11 +30,36 @@ const Create = () => {
   const [selectedProject, setSelectedProject] = useState<ArchitecturalProject | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
+  // State for unsaved changes context from simulator
+  const [unsavedChangesContext, setUnsavedChangesContext] = useState<{
+    checkUnsavedChangesBeforeAction: (action: () => void, showDialog?: (action: () => void) => void) => void;
+    hasUnsavedChanges: boolean;
+  } | null>(null);
+  
+  // Set up dialog for project loading warnings
+  const { 
+    isOpen: isLoadDialogOpen, 
+    showDialog: showLoadDialog, 
+    handleConfirm: handleLoadConfirm, 
+    handleCancel: handleLoadCancel, 
+    Dialog: LoadWarningDialog 
+  } = useUnsavedChangesDialog();
+
   const handleProjectLoad = (project: ArchitecturalProject) => {
-    // Store the project in memory for the simulator to load
-    setTransferProject(project);
-    // Trigger a re-render by scrolling to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const doLoad = () => {
+      // Store the project in memory for the simulator to load
+      setTransferProject(project);
+      // Trigger a re-render by scrolling to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Check for unsaved changes before loading
+    if (unsavedChangesContext) {
+      unsavedChangesContext.checkUnsavedChangesBeforeAction(doLoad, showLoadDialog);
+    } else {
+      // If no context available (simulator not loaded yet), just load directly
+      doLoad();
+    }
   };
 
   const handleProjectPreview = (project: ArchitecturalProject) => {
@@ -41,11 +68,17 @@ const Create = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Main Simulator Section */}
-      <div className="h-screen">
-        <ArchitectureSimulator />
-      </div>
+    <UnsavedChangesProvider value={unsavedChangesContext || { 
+      checkUnsavedChangesBeforeAction: (action: () => void) => action(), 
+      hasUnsavedChanges: false 
+    }}>
+      <div className="min-h-screen bg-background">
+        {/* Main Simulator Section */}
+        <div className="h-screen">
+          <ArchitectureSimulator 
+            onUnsavedChangesReady={setUnsavedChangesContext}
+          />
+        </div>
 
       {/* Gallery Section */}
       <div className="border-t bg-gradient-to-br from-muted/10 to-background">
@@ -84,7 +117,18 @@ const Create = () => {
           }
         }}
       />
-    </div>
+      
+      {/* Load Project Warning Dialog */}
+      <LoadWarningDialog 
+        isOpen={isLoadDialogOpen}
+        onConfirm={handleLoadConfirm}
+        onCancel={handleLoadCancel}
+        title="Load New Project"
+        description="You haven't saved your current work. Loading a new project will replace your current design. Are you sure you want to continue?"
+        actionText="Load New Project"
+      />
+      </div>
+    </UnsavedChangesProvider>
   );
 };
 

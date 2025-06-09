@@ -71,6 +71,7 @@ export function onProjectTransfer(listener: ProjectTransferListener): () => void
 // Working project functions for recovery/autosave features
 let workingProject: ArchitecturalProject | null = null;
 let workingProjectLastModified: number | null = null;
+let lastSavedState: string | null = null; // JSON string of last saved project state
 
 export function hasWorkingProject(): boolean {
   return workingProject !== null;
@@ -92,6 +93,32 @@ export function setWorkingProject(project: ArchitecturalProject): void {
 export function clearWorkingProject(): void {
   workingProject = null;
   workingProjectLastModified = null;
+  lastSavedState = null;
+}
+
+export function markProjectAsSaved(project: ArchitecturalProject): void {
+  lastSavedState = JSON.stringify({
+    elements: project.elements,
+    metadata: project.metadata,
+    name: project.name,
+    description: project.description
+  });
+}
+
+export function hasUnsavedChanges(currentProject: ArchitecturalProject): boolean {
+  if (!lastSavedState) {
+    // If there's no saved state, consider it unsaved if there are elements or the project has been modified
+    return currentProject.elements.length > 0 || currentProject.name !== 'New Architecture Project';
+  }
+  
+  const currentState = JSON.stringify({
+    elements: currentProject.elements,
+    metadata: currentProject.metadata,
+    name: currentProject.name,
+    description: currentProject.description
+  });
+  
+  return currentState !== lastSavedState;
 }
 
 export function useProjectManager(): UseProjectManagerReturn {
@@ -134,9 +161,12 @@ export function useProjectManager(): UseProjectManagerReturn {
         tags: createProjectTags(project, vitruviusId),
       });
 
-      return event;
+      return { event, project };
     },
-    onSuccess: () => {
+    onSuccess: ({ project }) => {
+      // Mark project as saved
+      markProjectAsSaved(project);
+      
       // Invalidate related queries to refresh gallery
       queryClient.invalidateQueries({ queryKey: ['vitruvius-projects'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -156,6 +186,7 @@ export function useProjectManager(): UseProjectManagerReturn {
     try {
       setError(null);
       downloadProjectAsJson(project);
+      markProjectAsSaved(project); // Mark as saved after download
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to download project';
       setError(message);
@@ -171,6 +202,7 @@ export function useProjectManager(): UseProjectManagerReturn {
       setError(null);
       
       const project = await loadProjectFromFile();
+      markProjectAsSaved(project); // Mark newly loaded project as saved
       return project;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load project from file';

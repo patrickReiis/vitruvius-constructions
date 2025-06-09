@@ -10,6 +10,9 @@ import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useProjectTransfer } from '@/hooks/useProjectTransfer';
+import { useUnsavedChangesWarning } from '@/hooks/useUnsavedChangesWarning';
+import { useUnsavedChangesDialog } from './UnsavedChangesDialog';
+import { setWorkingProject, markProjectAsSaved } from '@/hooks/useProjectManager';
 import { 
   PanelLeftOpen, 
   PanelRightOpen, 
@@ -37,7 +40,7 @@ const getOrCreateDefaultProjectId = () => {
 
 const createDefaultProject = (): ArchitecturalProject => {
   const now = Date.now();
-  return {
+  const defaultProject = {
     id: getOrCreateDefaultProjectId(),
     name: 'New Architecture Project',
     description: 'A modern architectural design created with Vitruvius Constructions',
@@ -84,10 +87,19 @@ const createDefaultProject = (): ArchitecturalProject => {
       units: 'metric',
       tags: ['sample', 'modern', 'residential']
     }
-  };
+  } as ArchitecturalProject;
+  
+  // Mark the default project as saved initially (since it starts with sample content)
+  markProjectAsSaved(defaultProject);
+  
+  return defaultProject;
 };
 
-export function ArchitectureSimulator() {
+export function ArchitectureSimulator({ 
+  onUnsavedChangesReady 
+}: { 
+  onUnsavedChangesReady?: (context: { checkUnsavedChangesBeforeAction: (action: () => void, showDialog?: (action: () => void) => void) => void, hasUnsavedChanges: boolean }) => void 
+} = {}) {
   const { user } = useCurrentUser();
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId?: string }>();
@@ -98,7 +110,7 @@ export function ArchitectureSimulator() {
     if (projectId) {
       // Create a project with the specified ID
       // The actual project data will be loaded via project transfer or from saved state
-      return {
+      const urlProject = {
         id: projectId,
         name: 'New Architecture Project',
         description: 'A modern architectural design created with Vitruvius Constructions',
@@ -112,19 +124,47 @@ export function ArchitectureSimulator() {
           units: 'metric',
           tags: ['sample', 'modern', 'residential']
         }
-      };
+      } as ArchitecturalProject;
+      
+      // Mark empty URL project as saved (it's just a placeholder)
+      markProjectAsSaved(urlProject);
+      return urlProject;
     }
     
-    // Otherwise create a default project
+    // Otherwise create a default project (already marked as saved)
     return createDefaultProject();
   });
 
   // Handle project transfers from gallery/projects pages
   useProjectTransfer((transferredProject) => {
     setProject(transferredProject);
+    // Mark transferred project as saved (since it was loaded from somewhere)
+    markProjectAsSaved(transferredProject);
     // Update the URL to reflect the new project
     navigate(`/create/${transferredProject.id}`, { replace: true });
   });
+
+  // Set up unsaved changes warning with React dialog
+  const { 
+    isOpen: isDialogOpen, 
+    showDialog, 
+    handleConfirm, 
+    handleCancel, 
+    Dialog: UnsavedChangesDialog 
+  } = useUnsavedChangesDialog();
+
+  const { hasUnsavedChanges: hasChanges, safeNavigate, checkUnsavedChangesBeforeAction } = useUnsavedChangesWarning({
+    project,
+    enabled: true
+  });
+
+  // Notify parent about unsaved changes functionality
+  useEffect(() => {
+    if (onUnsavedChangesReady) {
+      onUnsavedChangesReady({ checkUnsavedChangesBeforeAction, hasUnsavedChanges: hasChanges });
+    }
+  }, [checkUnsavedChangesBeforeAction, hasChanges, onUnsavedChangesReady]);
+
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<string>('perspective');
@@ -133,12 +173,14 @@ export function ArchitectureSimulator() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Update the URL when project changes
+  // Update the URL when project changes and track working project
   useEffect(() => {
     if (project.id && !window.location.pathname.includes(project.id)) {
       navigate(`/create/${project.id}`, { replace: true });
     }
-  }, [project.id, navigate]);
+    // Update working project for unsaved changes tracking
+    setWorkingProject(project);
+  }, [project.id, project, navigate]);
 
   // Add ESC key handler to unselect element
   useEffect(() => {
@@ -288,22 +330,30 @@ export function ArchitectureSimulator() {
           <div className="flex items-center gap-4">
             <h1 
               className="text-xl font-bold flex items-center gap-2 cursor-pointer hover:text-primary transition-colors" 
-              onClick={() => navigate('/')}
+              onClick={() => safeNavigate('/', undefined, showDialog)}
             >
               <Zap className="h-6 w-6 text-primary" />
               Vitruvius Constructions
             </h1>
             
-            <Badge variant="secondary" className="hidden sm:flex">
-              {project.elements.length} elements
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="hidden sm:flex">
+                {project.elements.length} elements
+              </Badge>
+              
+              {hasChanges && (
+                <Badge variant="destructive" className="hidden sm:flex">
+                  Unsaved
+                </Badge>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/projects')}
+              onClick={() => safeNavigate('/projects', undefined, showDialog)}
               className="flex items-center gap-1"
             >
               <Images className="h-4 w-4" />
@@ -453,6 +503,13 @@ export function ArchitectureSimulator() {
           </div>
         )}
       </div>
+      
+      {/* Unsaved Changes Dialog */}
+      <UnsavedChangesDialog 
+        isOpen={isDialogOpen}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }
