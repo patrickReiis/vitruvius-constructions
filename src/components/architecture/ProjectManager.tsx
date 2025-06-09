@@ -23,7 +23,8 @@ import {
   CheckCircle2,
   Cloud,
   HardDrive,
-  Trash2
+  Trash2,
+  Edit3
 } from 'lucide-react';
 import { ArchitecturalProject } from '@/types/architecture';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -43,8 +44,15 @@ export function ProjectManager({
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [newProjectData, setNewProjectData] = useState({
+    name: '',
+    description: '',
+    style: '',
+    tags: ''
+  });
+  const [editProjectData, setEditProjectData] = useState({
     name: '',
     description: '',
     style: '',
@@ -186,6 +194,37 @@ export function ProjectManager({
     }
   };
 
+  const handleEditProject = () => {
+    // Pre-fill the edit dialog with current project data
+    setEditProjectData({
+      name: project.name,
+      description: project.description,
+      style: project.metadata.style,
+      tags: project.metadata.tags.join(', ')
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEditedProject = () => {
+    // Update the project with new details
+    onProjectUpdate({
+      name: editProjectData.name,
+      description: editProjectData.description,
+      updated_at: Date.now(),
+      metadata: {
+        ...project.metadata,
+        style: editProjectData.style,
+        tags: editProjectData.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+      }
+    });
+    
+    setIsEditDialogOpen(false);
+    setSuccessMessage('Project details updated successfully!');
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+
   return (
     <Card className="w-80">
       <CardHeader className="pb-3">
@@ -226,9 +265,19 @@ export function ProjectManager({
 
         {/* Project Info */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <User className="h-4 w-4" />
-            <span className="font-medium">{project.name}</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <User className="h-4 w-4" />
+              <span className="font-medium">{project.name}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleEditProject}
+              className="h-8 w-8 p-0"
+            >
+              <Edit3 className="h-4 w-4" />
+            </Button>
           </div>
           
           {project.description && (
@@ -539,6 +588,69 @@ export function ProjectManager({
           </div>
         </div>
       </CardContent>
+
+      {/* Edit Project Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Project Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-project-name">Project Name</Label>
+              <Input
+                id="edit-project-name"
+                value={editProjectData.name}
+                onChange={(e) => setEditProjectData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="My Architecture Project"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="edit-project-description">Description</Label>
+              <Textarea
+                id="edit-project-description"
+                value={editProjectData.description}
+                onChange={(e) => setEditProjectData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Describe your architectural project..."
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="edit-project-style">Architectural Style</Label>
+              <Input
+                id="edit-project-style"
+                value={editProjectData.style}
+                onChange={(e) => setEditProjectData(prev => ({ ...prev, style: e.target.value }))}
+                placeholder="Modern, Classical, Minimalist..."
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="edit-project-tags">Tags (comma-separated)</Label>
+              <Input
+                id="edit-project-tags"
+                value={editProjectData.tags}
+                onChange={(e) => setEditProjectData(prev => ({ ...prev, tags: e.target.value }))}
+                placeholder="residential, sustainable, urban..."
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEditedProject} className="flex-1">
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

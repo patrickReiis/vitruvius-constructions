@@ -6,6 +6,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -24,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useVitruviusProjectsByAuthor } from '@/hooks/useVitruviusProjects';
-import { useProjectManager, setTransferProject } from '@/hooks/useProjectManager';
+import { useProjectManager, setTransferProject, markProjectAsSaved } from '@/hooks/useProjectManager';
 import { ArchitecturalProject } from '@/types/architecture';
 import { LoginArea } from '@/components/auth/LoginArea';
 
@@ -40,8 +43,41 @@ export function ProjectPicker() {
   }>({ open: false, project: null });
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Add state for new project dialog
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [newProjectData, setNewProjectData] = useState({
+    name: '',
+    description: '',
+    style: '',
+    tags: ''
+  });
+
   const handleCreateNew = () => {
-    navigate('/create');
+    setIsNewProjectOpen(true);
+  };
+
+  const handleCreateNewProject = () => {
+    const newProject: ArchitecturalProject = {
+      id: crypto.randomUUID(),
+      name: newProjectData.name || 'Untitled Project',
+      description: newProjectData.description,
+      author: user?.pubkey || 'anonymous',
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      elements: [],
+      metadata: {
+        style: newProjectData.style,
+        scale: 1,
+        units: 'metric',
+        tags: newProjectData.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+      }
+    };
+
+    markProjectAsSaved(newProject); // Mark new empty project as saved
+    setTransferProject(newProject);
+    setIsNewProjectOpen(false);
+    setNewProjectData({ name: '', description: '', style: '', tags: '' });
+    navigate(`/create/${newProject.id}`);
   };
 
   const handleLoadProject = (project: ArchitecturalProject) => {
@@ -276,6 +312,60 @@ export function ProjectPicker() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* New Project Dialog */}
+      <Dialog open={isNewProjectOpen} onOpenChange={setIsNewProjectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Project</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="project-name">Project Name</Label>
+              <Input
+                id="project-name"
+                value={newProjectData.name}
+                onChange={(e) => setNewProjectData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="My Architecture Project"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="project-description">Description</Label>
+              <Textarea
+                id="project-description"
+                value={newProjectData.description}
+                onChange={(e) => setNewProjectData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Describe your architectural project..."
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="project-style">Architectural Style</Label>
+              <Input
+                id="project-style"
+                value={newProjectData.style}
+                onChange={(e) => setNewProjectData(prev => ({ ...prev, style: e.target.value }))}
+                placeholder="Modern, Classical, Minimalist..."
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="project-tags">Tags (comma-separated)</Label>
+              <Input
+                id="project-tags"
+                value={newProjectData.tags}
+                onChange={(e) => setNewProjectData(prev => ({ ...prev, tags: e.target.value }))}
+                placeholder="residential, sustainable, urban..."
+              />
+            </div>
+            
+            <Button onClick={handleCreateNewProject} className="w-full">
+              Create Project
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
