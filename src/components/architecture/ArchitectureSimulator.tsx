@@ -9,10 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/useToast';
 import { useProjectTransfer } from '@/hooks/useProjectTransfer';
 import { useUnsavedChangesWarning } from '@/hooks/useUnsavedChangesWarning';
 import { useUnsavedChangesDialog } from './UnsavedChangesDialog';
 import { setWorkingProject, markProjectAsSaved } from '@/hooks/useProjectManager';
+import * as THREE from 'three';
 import { 
   PanelLeftOpen, 
   PanelRightOpen, 
@@ -22,10 +24,150 @@ import {
   Zap,
   Images
 } from 'lucide-react';
-import { BuildingElement, ArchitecturalProject } from '@/types/architecture';
+import { BuildingElement, ArchitecturalProject, GeometryData } from '@/types/architecture';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
-// Generate a stable default project ID that persists across component remounts
+// Helper function to check if two elements are touching (within tolerance)
+function areElementsTouching(element1: BuildingElement, element2: BuildingElement, tolerance = 0.01): boolean {
+  // Create 3D bounding boxes for each element
+  const box1 = new THREE.Box3();
+  const box2 = new THREE.Box3();
+  
+  // For element 1
+  const min1 = new THREE.Vector3(-element1.scale.x / 2, -element1.scale.y / 2, -element1.scale.z / 2);
+  const max1 = new THREE.Vector3(element1.scale.x / 2, element1.scale.y / 2, element1.scale.z / 2);
+  
+  // Apply rotation to corners of box1
+  const matrix1 = new THREE.Matrix4();
+  matrix1.makeRotationFromEuler(new THREE.Euler(element1.rotation.x, element1.rotation.y, element1.rotation.z));
+  matrix1.setPosition(element1.position.x, element1.position.y, element1.position.z);
+  
+  // Transform the box corners
+  const corners1 = [
+    new THREE.Vector3(min1.x, min1.y, min1.z),
+    new THREE.Vector3(max1.x, min1.y, min1.z),
+    new THREE.Vector3(min1.x, max1.y, min1.z),
+    new THREE.Vector3(max1.x, max1.y, min1.z),
+    new THREE.Vector3(min1.x, min1.y, max1.z),
+    new THREE.Vector3(max1.x, min1.y, max1.z),
+    new THREE.Vector3(min1.x, max1.y, max1.z),
+    new THREE.Vector3(max1.x, max1.y, max1.z),
+  ];
+  
+  corners1.forEach(corner => corner.applyMatrix4(matrix1));
+  box1.setFromPoints(corners1);
+  
+  // For element 2
+  const min2 = new THREE.Vector3(-element2.scale.x / 2, -element2.scale.y / 2, -element2.scale.z / 2);
+  const max2 = new THREE.Vector3(element2.scale.x / 2, element2.scale.y / 2, element2.scale.z / 2);
+  
+  const matrix2 = new THREE.Matrix4();
+  matrix2.makeRotationFromEuler(new THREE.Euler(element2.rotation.x, element2.rotation.y, element2.rotation.z));
+  matrix2.setPosition(element2.position.x, element2.position.y, element2.position.z);
+  
+  const corners2 = [
+    new THREE.Vector3(min2.x, min2.y, min2.z),
+    new THREE.Vector3(max2.x, min2.y, min2.z),
+    new THREE.Vector3(min2.x, max2.y, min2.z),
+    new THREE.Vector3(max2.x, max2.y, min2.z),
+    new THREE.Vector3(min2.x, min2.y, max2.z),
+    new THREE.Vector3(max2.x, min2.y, max2.z),
+    new THREE.Vector3(min2.x, max2.y, max2.z),
+    new THREE.Vector3(max2.x, max2.y, max2.z),
+  ];
+  
+  corners2.forEach(corner => corner.applyMatrix4(matrix2));
+  box2.setFromPoints(corners2);
+  
+  // Expand boxes by tolerance
+  box1.expandByScalar(tolerance);
+  
+  // Check if boxes intersect
+  return box1.intersectsBox(box2);
+}
+
+// Helper function to check if all selected elements are touching each other
+function areAllElementsTouching(elements: BuildingElement[], tolerance = 0.01): boolean {
+  if (elements.length < 2) return false;
+  
+  // Check if each element touches at least one other element
+  for (let i = 0; i < elements.length; i++) {
+    let touchesAnother = false;
+    for (let j = 0; j < elements.length; j++) {
+      if (i !== j && areElementsTouching(elements[i], elements[j], tolerance)) {
+        touchesAnother = true;
+        break;
+      }
+    }
+    if (!touchesAnother) return false;
+  }
+  
+  return true;
+}
+
+// Helper function to create Three.js geometry from BuildingElement (including CSG elements)
+function createThreeGeometryForCSG(element: BuildingElement): THREE.BufferGeometry {
+  // If this is a CSG union element, use its stored geometry
+  if (element.type === 'custom' && element.properties.unionOf && element.properties.csgGeometry && element.properties.geometryData) {
+    const geometryData = element.properties.geometryData as GeometryData;
+    const { positions, indices } = geometryData;
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    
+    if (indices) {
+      geometry.setIndex(indices);
+    }
+    
+    geometry.computeVertexNormals();
+    
+    // The stored geometry is already at the correct size and centered
+    // No additional scaling needed here
+    return geometry;
+  }
+  
+  // Otherwise use standard geometry creation
+  return createThreeGeometry(element);
+}
+function createThreeGeometry(element: BuildingElement): THREE.BufferGeometry {
+  const { scale } = element;
+  
+  switch (element.type) {
+    case 'wall':
+    case 'floor':
+    case 'window':
+    case 'door':
+    case 'beam':
+    case 'stairs':
+      return new THREE.BoxGeometry(scale.x, scale.y, scale.z);
+    
+    case 'roof':
+      return new THREE.ConeGeometry(scale.x, scale.y, 4);
+    
+    case 'column':
+      return new THREE.CylinderGeometry(
+        (scale.x + scale.z) / 4, // top radius
+        (scale.x + scale.z) / 4, // bottom radius  
+        scale.y, // height
+        8 // segments
+      );
+    
+    default:
+      return new THREE.BoxGeometry(scale.x, scale.y, scale.z);
+  }
+}
+
+// Helper function to create a mesh with proper positioning
+function createPositionedMesh(element: BuildingElement): THREE.Mesh {
+  const geometry = createThreeGeometry(element);
+  const material = new THREE.MeshStandardMaterial();
+  const mesh = new THREE.Mesh(geometry, material);
+  
+  mesh.position.set(element.position.x, element.position.y, element.position.z);
+  mesh.rotation.set(element.rotation.x, element.rotation.y, element.rotation.z);
+  
+  return mesh;
+}
 const getOrCreateDefaultProjectId = () => {
   const storageKey = 'vitruvius-default-project-id';
   let projectId = localStorage.getItem(storageKey);
@@ -103,6 +245,7 @@ export function ArchitectureSimulator({
   const { user } = useCurrentUser();
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId?: string }>();
+  const { toast } = useToast();
   
   // Initialize project state with a function to avoid recreating default project on every render
   const [project, setProject] = useState<ArchitecturalProject>(() => {
@@ -166,6 +309,7 @@ export function ArchitectureSimulator({
   }, [checkUnsavedChangesBeforeAction, hasChanges, onUnsavedChangesReady]);
 
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const [selectedElements, setSelectedElements] = useState<string[]>([]); // For multi-selection
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<string>('perspective');
   const [viewDirection, setViewDirection] = useState<'north' | 'south' | 'east' | 'west'>('south');
@@ -252,18 +396,30 @@ export function ArchitectureSimulator({
   // Add keyboard shortcuts for element manipulation (must be after deleteElement is defined)
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && selectedElement) {
-        setSelectedElement(null);
+      if (event.key === 'Escape') {
+        if (selectedElement) {
+          setSelectedElement(null);
+        }
+        if (selectedElements.length > 0) {
+          setSelectedElements([]);
+        }
       }
       
-      if (event.key === 'Delete' && selectedElement) {
-        deleteElement(selectedElement);
+      if (event.key === 'Delete') {
+        if (selectedElement) {
+          deleteElement(selectedElement);
+        }
+        // For multi-selection, delete all selected elements
+        if (selectedElements.length > 0) {
+          selectedElements.forEach(elementId => deleteElement(elementId));
+          setSelectedElements([]);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [selectedElement, deleteElement]);
+  }, [selectedElement, selectedElements, deleteElement]);
 
   const copyElement = useCallback((elementId: string) => {
     const element = project.elements.find(el => el.id === elementId);
@@ -298,6 +454,216 @@ export function ArchitectureSimulator({
       color: getDefaultColor(element.type)
     });
   }, [project.elements, updateElement]);
+
+  const handleElementSelect = useCallback((elementId: string, ctrlKey?: boolean) => {
+    if (ctrlKey) {
+      // Multi-selection with Ctrl+click
+      if (selectedElements.includes(elementId)) {
+        // Remove from selection
+        setSelectedElements(prev => prev.filter(id => id !== elementId));
+      } else {
+        // Add to selection
+        setSelectedElements(prev => [...prev, elementId]);
+        // Clear single selection when first multi-select happens
+        if (selectedElement && !selectedElements.includes(selectedElement)) {
+          setSelectedElement(null);
+        }
+      }
+    } else {
+      // Single selection (normal click)
+      setSelectedElement(elementId);
+      setSelectedElements([]); // Clear multi-selection
+    }
+  }, [selectedElement, selectedElements]);
+
+  const createGroup = useCallback(() => {
+    if (selectedElements.length < 2) return;
+
+    // Get the selected elements
+    const elementsToGroup = project.elements.filter(el => selectedElements.includes(el.id));
+    
+    // Calculate bounding box center for the group position
+    const positions = elementsToGroup.map(el => el.position);
+    const centerX = positions.reduce((sum, pos) => sum + pos.x, 0) / positions.length;
+    const centerY = positions.reduce((sum, pos) => sum + pos.y, 0) / positions.length;
+    const centerZ = positions.reduce((sum, pos) => sum + pos.z, 0) / positions.length;
+
+    // Create the group element
+    const groupElement: BuildingElement = {
+      id: crypto.randomUUID(),
+      type: 'custom',
+      position: { x: centerX, y: centerY, z: centerZ },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+      color: elementsToGroup[0].color, // Use first element's color
+      material: elementsToGroup[0].material, // Use first element's material
+      properties: { groupOf: selectedElements.join(',') },
+      children: elementsToGroup.map(el => ({
+        ...el,
+        // Adjust child positions relative to the group center
+        position: {
+          x: el.position.x - centerX,
+          y: el.position.y - centerY,
+          z: el.position.z - centerZ
+        }
+      }))
+    };
+
+    // Remove original elements and add group
+    setProject(prev => ({
+      ...prev,
+      elements: [
+        ...prev.elements.filter(el => !selectedElements.includes(el.id)),
+        groupElement
+      ],
+      updated_at: Date.now()
+    }));
+
+    // Clear multi-selection and select the new group
+    setSelectedElements([]);
+    setSelectedElement(groupElement.id);
+  }, [selectedElements, project.elements]);
+
+  const createUnion = useCallback(async () => {
+    if (selectedElements.length < 2) return;
+
+    try {
+      // Get the selected elements
+      const elementsToUnion = project.elements.filter(el => selectedElements.includes(el.id));
+      
+      // Check if all elements are touching
+      const areTouching = areAllElementsTouching(elementsToUnion);
+      if (!areTouching) {
+        toast({
+          title: "Union Failed",
+          description: "Elements must be touching or overlapping to create a union.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Import CSG library dynamically
+      const { ADDITION, Evaluator, Brush } = await import('three-bvh-csg');
+      
+      // Create CSG brushes for operations
+      const brushes = elementsToUnion.map(element => {
+        // Create base geometry at unit scale
+        let geometry: THREE.BufferGeometry;
+        
+        switch (element.type) {
+          case 'wall':
+          case 'floor':
+          case 'window':
+          case 'door':
+          case 'beam':
+          case 'stairs':
+            geometry = new THREE.BoxGeometry(1, 1, 1);
+            break;
+          case 'roof':
+            geometry = new THREE.ConeGeometry(1, 1, 4);
+            break;
+          case 'column':
+            geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
+            break;
+          default:
+            geometry = new THREE.BoxGeometry(1, 1, 1);
+        }
+        
+        const brush = new Brush(geometry);
+        
+        // Apply transformations in the correct order: scale, rotate, then translate
+        brush.scale.set(element.scale.x, element.scale.y, element.scale.z);
+        brush.rotation.set(element.rotation.x, element.rotation.y, element.rotation.z);
+        brush.position.set(element.position.x, element.position.y, element.position.z);
+        
+        brush.updateMatrixWorld();
+        
+        return brush;
+      });
+      
+      // Perform boolean union
+      const evaluator = new Evaluator();
+      let resultBrush = brushes[0];
+      
+      // Union all brushes together
+      for (let i = 1; i < brushes.length; i++) {
+        resultBrush = evaluator.evaluate(resultBrush, brushes[i], ADDITION);
+      }
+
+      // Get the merged geometry
+      const mergedGeometry = resultBrush.geometry.clone();
+      
+      // Calculate bounding box of the merged geometry
+      mergedGeometry.computeBoundingBox();
+      const boundingBox = mergedGeometry.boundingBox!;
+      const center = new THREE.Vector3();
+      const size = new THREE.Vector3();
+      boundingBox.getCenter(center);
+      boundingBox.getSize(size);
+      
+      // Normalize the geometry to unit scale (-0.5 to 0.5 on each axis)
+      // This allows for proper scaling afterwards
+      mergedGeometry.translate(-center.x, -center.y, -center.z);
+      mergedGeometry.scale(1 / size.x, 1 / size.y, 1 / size.z);
+      
+      // Store normalized geometry data
+      const positions = mergedGeometry.attributes.position.array;
+      const indices = mergedGeometry.index?.array;
+
+      // Create the union element with the merged geometry
+      const unionElement: BuildingElement = {
+        id: crypto.randomUUID(),
+        type: 'custom',
+        position: { x: center.x, y: center.y, z: center.z },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: size.x, y: size.y, z: size.z }, // Store actual size for proper scaling
+        color: elementsToUnion[0].color,
+        material: elementsToUnion[0].material,
+        properties: { 
+          unionOf: selectedElements.join(','),
+          csgGeometry: true, // Flag to indicate this uses CSG geometry
+          geometryData: {
+            positions: Array.from(positions),
+            indices: indices ? Array.from(indices) : undefined
+          }
+        },
+        // Store the original elements
+        children: elementsToUnion
+      };
+
+      // Remove original elements and add union
+      setProject(prev => ({
+        ...prev,
+        elements: [
+          ...prev.elements.filter(el => !selectedElements.includes(el.id)),
+          unionElement
+        ],
+        updated_at: Date.now()
+      }));
+
+      // Clear multi-selection and select the new union
+      setSelectedElements([]);
+      setSelectedElement(unionElement.id);
+
+      toast({
+        title: "Union Created",
+        description: `Successfully merged ${elementsToUnion.length} elements using CSG boolean union.`
+      });
+
+      // Clean up
+      brushes.forEach(brush => {
+        brush.geometry.dispose();
+      });
+
+    } catch (error) {
+      console.error('CSG Union creation failed:', error);
+      toast({
+        title: "Union Failed", 
+        description: "Could not create CSG union. Elements may have incompatible geometry or overlapping issues.",
+        variant: "destructive"
+      });
+    }
+  }, [selectedElements, project.elements, toast]);
 
   const handleElementAction = useCallback((action: 'delete' | 'copy' | 'reset') => {
     if (!selectedElement) return;
@@ -438,7 +804,8 @@ export function ArchitectureSimulator({
           <Scene3D
             elements={project.elements}
             selectedElement={selectedElement}
-            onElementSelect={setSelectedElement}
+            selectedElements={selectedElements}
+            onElementSelect={handleElementSelect}
             onElementUpdate={updateElement}
             viewMode={viewMode as 'perspective' | 'orthographic' | 'top' | 'front' | 'side' | 'custom'}
             viewDirection={viewDirection}
@@ -461,10 +828,23 @@ export function ArchitectureSimulator({
                     </Badge>
                   </>
                 )}
+                {selectedElements.length > 1 && (
+                  <>
+                    <Separator orientation="vertical" className="h-4" />
+                    <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700">
+                      {selectedElements.length} selected
+                    </Badge>
+                  </>
+                )}
               </div>
-              {selectedElementData && (
+              {selectedElementData && selectedElements.length <= 1 && (
                 <div className="text-xs text-muted-foreground">
                   💡 Drag to move • ESC to unselect • DEL to delete • Use panel for precision
+                </div>
+              )}
+              {selectedElements.length > 1 && (
+                <div className="text-xs text-muted-foreground">
+                  💡 Ctrl+click to multi-select • ESC to clear • DEL to delete all • Group/Union in panel
                 </div>
               )}
             </div>
@@ -501,7 +881,11 @@ export function ArchitectureSimulator({
             <div className="p-4">
               <PropertiesPanel
                 selectedElement={selectedElementData}
+                selectedElements={selectedElements}
                 onElementUpdate={updateElement}
+                onCreateGroup={createGroup}
+                onCreateUnion={createUnion}
+                elements={project.elements}
               />
             </div>
           </div>
@@ -529,6 +913,7 @@ function getDefaultHeight(type: BuildingElement['type']): number {
     case 'column': return 1.5;
     case 'beam': return 3;
     case 'stairs': return 0.5;
+    case 'custom': return 2;
     default: return 1;
   }
 }
@@ -543,6 +928,7 @@ function getDefaultScale(type: BuildingElement['type']): { x: number; y: number;
     case 'column': return { x: 0.3, y: 3, z: 0.3 };
     case 'beam': return { x: 4, y: 0.3, z: 0.3 };
     case 'stairs': return { x: 2, y: 1, z: 3 };
+    case 'custom': return { x: 2, y: 2, z: 2 };
     default: return { x: 1, y: 1, z: 1 };
   }
 }
@@ -557,6 +943,7 @@ function getDefaultColor(type: BuildingElement['type']): string {
     case 'column': return '#6b7280';
     case 'beam': return '#374151';
     case 'stairs': return '#78716c';
+    case 'custom': return '#8b5cf6';
     default: return '#9ca3af';
   }
 }
@@ -571,6 +958,7 @@ function getDefaultMaterial(type: BuildingElement['type']): string {
     case 'column': return 'concrete';
     case 'beam': return 'steel';
     case 'stairs': return 'stone';
+    case 'custom': return 'concrete';
     default: return 'concrete';
   }
 }

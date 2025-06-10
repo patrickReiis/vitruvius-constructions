@@ -6,13 +6,20 @@ export interface Vector3 {
 
 export interface BuildingElement {
   id: string;
-  type: 'wall' | 'floor' | 'roof' | 'window' | 'door' | 'column' | 'beam' | 'stairs';
+  type: 'wall' | 'floor' | 'roof' | 'window' | 'door' | 'column' | 'beam' | 'stairs' | 'custom';
   position: Vector3;
   rotation: Vector3;
   scale: Vector3;
   color: string;
   material: string;
-  properties: Record<string, string | number | boolean>;
+  properties: Record<string, string | number | boolean | GeometryData>;
+  // For custom/union elements - contains the original elements
+  children?: BuildingElement[];
+}
+
+export interface GeometryData {
+  positions: number[];
+  indices?: number[];
 }
 
 export interface ArchitecturalProject {

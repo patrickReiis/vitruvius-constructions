@@ -6,12 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Settings, Palette, Ruler, RotateCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Settings, Palette, Ruler, RotateCw, Combine, Group } from 'lucide-react';
 import { BuildingElement } from '@/types/architecture';
+import * as THREE from 'three';
 
 interface PropertiesPanelProps {
   selectedElement: BuildingElement | null | undefined;
+  selectedElements?: string[];
   onElementUpdate: (elementId: string, updates: Partial<BuildingElement>) => void;
+  onCreateGroup?: () => void;
+  onCreateUnion?: () => void;
+  elements?: BuildingElement[]; // Need this to check touching
 }
 
 const materialOptions = [
@@ -29,8 +35,150 @@ const colorPresets = [
   '#6b7280', '#374151', '#1f2937', '#ffffff'
 ];
 
-export function PropertiesPanel({ selectedElement, onElementUpdate }: PropertiesPanelProps) {
+// Helper function to check if two elements are touching (within tolerance)
+function areElementsTouching(element1: BuildingElement, element2: BuildingElement, tolerance = 0.01): boolean {
+  // Create 3D bounding boxes for each element
+  const box1 = new THREE.Box3();
+  const box2 = new THREE.Box3();
+  
+  // For element 1
+  const min1 = new THREE.Vector3(-element1.scale.x / 2, -element1.scale.y / 2, -element1.scale.z / 2);
+  const max1 = new THREE.Vector3(element1.scale.x / 2, element1.scale.y / 2, element1.scale.z / 2);
+  
+  // Apply rotation to corners of box1
+  const matrix1 = new THREE.Matrix4();
+  matrix1.makeRotationFromEuler(new THREE.Euler(element1.rotation.x, element1.rotation.y, element1.rotation.z));
+  matrix1.setPosition(element1.position.x, element1.position.y, element1.position.z);
+  
+  // Transform the box corners
+  const corners1 = [
+    new THREE.Vector3(min1.x, min1.y, min1.z),
+    new THREE.Vector3(max1.x, min1.y, min1.z),
+    new THREE.Vector3(min1.x, max1.y, min1.z),
+    new THREE.Vector3(max1.x, max1.y, min1.z),
+    new THREE.Vector3(min1.x, min1.y, max1.z),
+    new THREE.Vector3(max1.x, min1.y, max1.z),
+    new THREE.Vector3(min1.x, max1.y, max1.z),
+    new THREE.Vector3(max1.x, max1.y, max1.z),
+  ];
+  
+  corners1.forEach(corner => corner.applyMatrix4(matrix1));
+  box1.setFromPoints(corners1);
+  
+  // For element 2
+  const min2 = new THREE.Vector3(-element2.scale.x / 2, -element2.scale.y / 2, -element2.scale.z / 2);
+  const max2 = new THREE.Vector3(element2.scale.x / 2, element2.scale.y / 2, element2.scale.z / 2);
+  
+  const matrix2 = new THREE.Matrix4();
+  matrix2.makeRotationFromEuler(new THREE.Euler(element2.rotation.x, element2.rotation.y, element2.rotation.z));
+  matrix2.setPosition(element2.position.x, element2.position.y, element2.position.z);
+  
+  const corners2 = [
+    new THREE.Vector3(min2.x, min2.y, min2.z),
+    new THREE.Vector3(max2.x, min2.y, min2.z),
+    new THREE.Vector3(min2.x, max2.y, min2.z),
+    new THREE.Vector3(max2.x, max2.y, min2.z),
+    new THREE.Vector3(min2.x, min2.y, max2.z),
+    new THREE.Vector3(max2.x, min2.y, max2.z),
+    new THREE.Vector3(min2.x, max2.y, max2.z),
+    new THREE.Vector3(max2.x, max2.y, max2.z),
+  ];
+  
+  corners2.forEach(corner => corner.applyMatrix4(matrix2));
+  box2.setFromPoints(corners2);
+  
+  // Expand boxes by tolerance
+  box1.expandByScalar(tolerance);
+  
+  // Check if boxes intersect
+  return box1.intersectsBox(box2);
+}
+
+// Helper function to check if all selected elements are touching each other
+function areAllElementsTouching(elements: BuildingElement[], tolerance = 0.1): boolean {
+  if (elements.length < 2) return false;
+  
+  // Check if each element touches at least one other element
+  for (let i = 0; i < elements.length; i++) {
+    let touchesAnother = false;
+    for (let j = 0; j < elements.length; j++) {
+      if (i !== j && areElementsTouching(elements[i], elements[j], tolerance)) {
+        touchesAnother = true;
+        break;
+      }
+    }
+    if (!touchesAnother) return false;
+  }
+  
+  return true;
+}
+
+export function PropertiesPanel({ 
+  selectedElement, 
+  selectedElements = [], 
+  onElementUpdate, 
+  onCreateGroup,
+  onCreateUnion,
+  elements = []
+}: PropertiesPanelProps) {
   const [localValues, setLocalValues] = useState<Partial<BuildingElement>>({});
+
+  // Show multi-selection UI if multiple elements are selected
+  if (selectedElements.length > 1) {
+    // Get the actual element objects
+    const selectedElementObjects = elements.filter(el => selectedElements.includes(el.id));
+    const areTouching = areAllElementsTouching(selectedElementObjects);
+
+    return (
+      <Card className="w-80 h-full">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Multi-Selection
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {selectedElements.length} elements selected
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-center">
+            <Badge variant="secondary" className="mb-4">
+              {selectedElements.length} Elements
+            </Badge>
+            <p className="text-sm text-muted-foreground mb-4">
+              Hold Ctrl and click elements to multi-select
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            <Button
+              onClick={onCreateGroup}
+              className="w-full gap-2"
+              variant="outline"
+              disabled={selectedElements.length < 2}
+            >
+              <Group className="h-4 w-4" />
+              Create Group
+            </Button>
+            
+            <Button
+              onClick={onCreateUnion}
+              className="w-full gap-2"
+              disabled={selectedElements.length < 2 || !areTouching}
+            >
+              <Combine className="h-4 w-4" />
+              Create Union
+            </Button>
+          </div>
+          
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div>• <strong>Group:</strong> Visual grouping of elements</div>
+            <div>• <strong>Union:</strong> Geometric merge of touching objects</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!selectedElement) {
     return (

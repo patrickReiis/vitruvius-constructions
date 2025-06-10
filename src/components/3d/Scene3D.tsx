@@ -11,7 +11,8 @@ import * as THREE from 'three';
 interface Scene3DProps {
   elements: BuildingElement[];
   selectedElement?: string | null;
-  onElementSelect?: (elementId: string) => void;
+  selectedElements?: string[];
+  onElementSelect?: (elementId: string, ctrlKey?: boolean) => void;
   onElementUpdate?: (elementId: string, updates: Partial<BuildingElement>) => void;
   viewMode?: 'perspective' | 'orthographic' | 'top' | 'front' | 'side' | 'custom';
   viewDirection?: 'north' | 'south' | 'east' | 'west';
@@ -140,6 +141,7 @@ function CameraController({
 export function Scene3D({ 
   elements, 
   selectedElement, 
+  selectedElements = [],
   onElementSelect, 
   onElementUpdate,
   viewMode = 'perspective',
@@ -207,7 +209,8 @@ export function Scene3D({
               key={element.id}
               element={element}
               isSelected={selectedElement === element.id}
-              onSelect={() => onElementSelect?.(element.id)}
+              isMultiSelected={selectedElements.includes(element.id)}
+              onSelect={(ctrlKey) => onElementSelect?.(element.id, ctrlKey)}
               onUpdate={(updates) => onElementUpdate?.(element.id, updates)}
             />
           ))}
