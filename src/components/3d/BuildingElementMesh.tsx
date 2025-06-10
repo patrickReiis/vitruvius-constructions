@@ -104,7 +104,7 @@ export function BuildingElementMesh({
           scale={[element.scale.x, element.scale.y, element.scale.z]}
         >
           <meshStandardMaterial 
-            color={element.color}
+            color={isSelected ? '#3b82f6' : isMultiSelected ? '#f59e0b' : hovered ? '#60a5fa' : element.color}
             roughness={0.7}
             metalness={0.1}
           />
