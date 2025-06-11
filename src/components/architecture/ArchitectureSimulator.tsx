@@ -499,7 +499,7 @@ export function ArchitectureSimulator({
   }, [selectedElements, project.elements]);
 
   // Flatten a list of elements to all underlying primitives (recursively)
-  function flattenToPrimitives(elements: BuildingElement[]): BuildingElement[] {
+  const flattenToPrimitives = useCallback((elements: BuildingElement[]): BuildingElement[] => {
     const result: BuildingElement[] = [];
     for (const el of elements) {
       if (
@@ -514,7 +514,7 @@ export function ArchitectureSimulator({
       }
     }
     return result;
-  }
+  }, []);
 
   const createUnion = useCallback(async () => {
     if (selectedElements.length < 2) return;
@@ -538,7 +538,7 @@ export function ArchitectureSimulator({
       }
 
       // Import CSG library dynamically
-      const { ADDITION, Evaluator, Brush } = await import('three-bvh-csg');
+      const { ADDITION, INTERSECTION, Evaluator, Brush } = await import('three-bvh-csg');
 
       // Create CSG brushes for primitive operations
       const brushes = primitiveElements.map(element => {
@@ -643,7 +643,156 @@ export function ArchitectureSimulator({
         variant: "destructive"
       });
     }
-  }, [selectedElements, project.elements, toast]);
+  }, [selectedElements, project.elements, toast, flattenToPrimitives]);
+
+  const createIntersection = useCallback(async () => {
+    if (selectedElements.length < 2) return;
+
+    try {
+      // Get the selected elements (can include custom union/group)
+      const elementsToIntersect = project.elements.filter(el => selectedElements.includes(el.id));
+
+      // Flatten all recursive children down to primitives
+      const primitiveElements = flattenToPrimitives(elementsToIntersect);
+
+      // Check if all primitives are touching (intersection requires overlapping geometry)
+      const areTouching = areAllElementsTouching(primitiveElements);
+      if (!areTouching) {
+        toast({
+          title: "Intersection Failed",
+          description: "Elements must be touching or overlapping to create an intersection.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Import CSG library dynamically
+      const { INTERSECTION, Evaluator, Brush } = await import('three-bvh-csg');
+
+      // Create CSG brushes for primitive operations
+      const brushes = primitiveElements.map(element => {
+        let geometry: THREE.BufferGeometry;
+
+        switch (element.type) {
+          case 'wall':
+          case 'floor':
+          case 'window':
+          case 'door':
+          case 'beam':
+          case 'stairs':
+            geometry = new THREE.BoxGeometry(1, 1, 1);
+            break;
+          case 'roof':
+            geometry = new THREE.ConeGeometry(1, 1, 4);
+            break;
+          case 'column':
+            geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
+            break;
+          default:
+            geometry = new THREE.BoxGeometry(1, 1, 1);
+        }
+
+        const brush = new Brush(geometry);
+        brush.scale.set(element.scale.x, element.scale.y, element.scale.z);
+        brush.rotation.set(element.rotation.x, element.rotation.y, element.rotation.z);
+        brush.position.set(element.position.x, element.position.y, element.position.z);
+        brush.updateMatrixWorld();
+        return brush;
+      });
+
+      // Perform boolean intersection
+      const evaluator = new Evaluator();
+      let resultBrush = brushes[0];
+      for (let i = 1; i < brushes.length; i++) {
+        resultBrush = evaluator.evaluate(resultBrush, brushes[i], INTERSECTION);
+      }
+
+      // Check if the intersection result is valid (has volume)
+      if (!resultBrush.geometry || resultBrush.geometry.attributes.position.count === 0) {
+        toast({
+          title: "Intersection Failed",
+          description: "The selected elements do not have overlapping geometry to create a meaningful intersection.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Get the intersected geometry
+      const intersectedGeometry = resultBrush.geometry.clone();
+      intersectedGeometry.computeBoundingBox();
+      const boundingBox = intersectedGeometry.boundingBox!;
+      const center = new THREE.Vector3();
+      const size = new THREE.Vector3();
+      boundingBox.getCenter(center);
+      boundingBox.getSize(size);
+
+      // Check if the resulting geometry has meaningful size
+      if (size.x < 0.01 || size.y < 0.01 || size.z < 0.01) {
+        toast({
+          title: "Intersection Failed",
+          description: "The intersection between selected elements is too small or empty.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Normalize
+      intersectedGeometry.translate(-center.x, -center.y, -center.z);
+      intersectedGeometry.scale(1 / size.x, 1 / size.y, 1 / size.z);
+
+      const positions = intersectedGeometry.attributes.position.array;
+      const indices = intersectedGeometry.index?.array;
+
+      // New intersection element: children is a flattened copy of all primitives used
+      const intersectionElement: BuildingElement = {
+        id: crypto.randomUUID(),
+        type: 'custom',
+        position: { x: center.x, y: center.y, z: center.z },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: size.x, y: size.y, z: size.z },
+        color: primitiveElements[0].color,
+        material: primitiveElements[0].material,
+        properties: {
+          intersectionOf: selectedElements.join(','),
+          csgGeometry: true,
+          geometryData: {
+            positions: Array.from(positions),
+            indices: indices ? Array.from(indices) : undefined
+          },
+          // Keep full source structure, for history/debug/audit
+          originalElements: JSON.stringify(elementsToIntersect) // as plain data to avoid deep object cycles
+        },
+        children: primitiveElements.map(e => ({ ...e }))
+      };
+
+      setProject(prev => ({
+        ...prev,
+        elements: [
+          ...prev.elements.filter(el => !selectedElements.includes(el.id)),
+          intersectionElement
+        ],
+        updated_at: Date.now()
+      }));
+
+      setSelectedElements([]);
+      setSelectedElement(intersectionElement.id);
+
+      toast({
+        title: "Intersection Created",
+        description: `Successfully created intersection of ${primitiveElements.length} primitives using CSG boolean intersection.`
+      });
+
+      brushes.forEach(brush => brush.geometry.dispose());
+
+    } catch (error) {
+      console.error('CSG Intersection creation failed:', error);
+      toast({
+        title: "Intersection Failed",
+        description: "Could not create CSG intersection. Elements may have incompatible geometry or no overlapping volume.",
+        variant: "destructive"
+      });
+    }
+  }, [selectedElements, project.elements, toast, flattenToPrimitives]);
 
 
   const handleElementAction = useCallback((action: 'delete' | 'copy' | 'reset') => {
@@ -866,6 +1015,7 @@ export function ArchitectureSimulator({
                 onElementUpdate={updateElement}
                 onCreateGroup={createGroup}
                 onCreateUnion={createUnion}
+                onCreateIntersection={createIntersection}
                 elements={project.elements}
               />
             </div>

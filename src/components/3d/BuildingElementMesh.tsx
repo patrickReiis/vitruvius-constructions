@@ -77,13 +77,14 @@ export function BuildingElementMesh({
       return null;
     }
 
-    // Check if this is a union (geometric merge) or group (visual grouping)
+    // Check if this is a union (geometric merge), intersection (geometric overlap), or group (visual grouping)
     const isUnion = element.properties.unionOf;
+    const isIntersection = element.properties.intersectionOf;
     const isGroup = element.properties.groupOf;
     const hasCsgGeometry = element.properties.csgGeometry;
 
-    if (isUnion && hasCsgGeometry && element.properties.geometryData) {
-      // For CSG unions, render the merged geometry from stored data
+    if ((isUnion || isIntersection) && hasCsgGeometry && element.properties.geometryData) {
+      // For CSG unions/intersections, render the merged geometry from stored data
       const geometryData = element.properties.geometryData as GeometryData;
       const { positions, indices } = geometryData;
       
@@ -110,8 +111,8 @@ export function BuildingElementMesh({
           />
         </mesh>
       );
-    } else if (isUnion) {
-      // For simple unions without CSG, render as bounding box
+    } else if (isUnion || isIntersection) {
+      // For simple unions/intersections without CSG, render as bounding box
       return null; // The main geometry will be rendered
     } else if (isGroup) {
       // For groups, render child elements relative to the parent position
@@ -190,11 +191,11 @@ export function BuildingElementMesh({
       {/* For custom elements */}
       {element.type === 'custom' && (
         <>
-          {/* If it's a CSG union, render only the merged geometry (no bounding box) */}
-          {element.properties.unionOf && element.properties.csgGeometry && element.properties.geometryData && renderCustomElement()}
+          {/* If it's a CSG union/intersection, render only the merged geometry (no bounding box) */}
+          {(element.properties.unionOf || element.properties.intersectionOf) && element.properties.csgGeometry && element.properties.geometryData && renderCustomElement()}
           
-          {/* If it's a simple union without CSG, render bounding box */}
-          {element.properties.unionOf && !element.properties.csgGeometry && (
+          {/* If it's a simple union/intersection without CSG, render bounding box */}
+          {(element.properties.unionOf || element.properties.intersectionOf) && !element.properties.csgGeometry && (
             <>
               {getGeometry()}
               {getMaterial()}
@@ -210,8 +211,8 @@ export function BuildingElementMesh({
       {(isSelected || isMultiSelected) && (
         <mesh>
           {/* Use CSG geometry for outline if available, otherwise use standard geometry */}
-          {element.type === 'custom' && element.properties.unionOf && element.properties.csgGeometry && element.properties.geometryData ? (
-            // For CSG unions, create outline from CSG geometry
+          {element.type === 'custom' && (element.properties.unionOf || element.properties.intersectionOf) && element.properties.csgGeometry && element.properties.geometryData ? (
+            // For CSG unions/intersections, create outline from CSG geometry
             (() => {
               const geometryData = element.properties.geometryData as GeometryData;
               const { positions, indices } = geometryData;
