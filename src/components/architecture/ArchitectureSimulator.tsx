@@ -524,15 +524,36 @@ export function ArchitectureSimulator({
     setSelectedElement(groupElement.id);
   }, [selectedElements, project.elements]);
 
+  // Flatten a list of elements to all underlying primitives (recursively)
+  function flattenToPrimitives(elements: BuildingElement[]): BuildingElement[] {
+    const result: BuildingElement[] = [];
+    for (const el of elements) {
+      if (
+        el.type === 'custom' &&
+        (el.properties.unionOf || el.properties.groupOf) &&
+        el.children && el.children.length > 0
+      ) {
+        // Recursively flatten children
+        result.push(...flattenToPrimitives(el.children));
+      } else {
+        result.push(el);
+      }
+    }
+    return result;
+  }
+
   const createUnion = useCallback(async () => {
     if (selectedElements.length < 2) return;
 
     try {
-      // Get the selected elements
+      // Get the selected elements (can include custom union/group)
       const elementsToUnion = project.elements.filter(el => selectedElements.includes(el.id));
-      
-      // Check if all elements are touching
-      const areTouching = areAllElementsTouching(elementsToUnion);
+
+      // Flatten all recursive children down to primitives
+      const primitiveElements = flattenToPrimitives(elementsToUnion);
+
+      // Check if all primitives are touching
+      const areTouching = areAllElementsTouching(primitiveElements);
       if (!areTouching) {
         toast({
           title: "Union Failed",
@@ -541,15 +562,14 @@ export function ArchitectureSimulator({
         });
         return;
       }
-      
+
       // Import CSG library dynamically
       const { ADDITION, Evaluator, Brush } = await import('three-bvh-csg');
-      
-      // Create CSG brushes for operations
-      const brushes = elementsToUnion.map(element => {
-        // Create base geometry at unit scale
+
+      // Create CSG brushes for primitive operations
+      const brushes = primitiveElements.map(element => {
         let geometry: THREE.BufferGeometry;
-        
+
         switch (element.type) {
           case 'wall':
           case 'floor':
@@ -568,70 +588,60 @@ export function ArchitectureSimulator({
           default:
             geometry = new THREE.BoxGeometry(1, 1, 1);
         }
-        
+
         const brush = new Brush(geometry);
-        
-        // Apply transformations in the correct order: scale, rotate, then translate
         brush.scale.set(element.scale.x, element.scale.y, element.scale.z);
         brush.rotation.set(element.rotation.x, element.rotation.y, element.rotation.z);
         brush.position.set(element.position.x, element.position.y, element.position.z);
-        
         brush.updateMatrixWorld();
-        
         return brush;
       });
-      
+
       // Perform boolean union
       const evaluator = new Evaluator();
       let resultBrush = brushes[0];
-      
-      // Union all brushes together
       for (let i = 1; i < brushes.length; i++) {
         resultBrush = evaluator.evaluate(resultBrush, brushes[i], ADDITION);
       }
 
       // Get the merged geometry
       const mergedGeometry = resultBrush.geometry.clone();
-      
-      // Calculate bounding box of the merged geometry
       mergedGeometry.computeBoundingBox();
       const boundingBox = mergedGeometry.boundingBox!;
       const center = new THREE.Vector3();
       const size = new THREE.Vector3();
       boundingBox.getCenter(center);
       boundingBox.getSize(size);
-      
-      // Normalize the geometry to unit scale (-0.5 to 0.5 on each axis)
-      // This allows for proper scaling afterwards
+
+      // Normalize
       mergedGeometry.translate(-center.x, -center.y, -center.z);
       mergedGeometry.scale(1 / size.x, 1 / size.y, 1 / size.z);
-      
-      // Store normalized geometry data
+
       const positions = mergedGeometry.attributes.position.array;
       const indices = mergedGeometry.index?.array;
 
-      // Create the union element with the merged geometry
+      // New union element: children is a flattened copy of all primitives used, but preserve input hierarchy inside .properties.originalElements for reference if needed
       const unionElement: BuildingElement = {
         id: crypto.randomUUID(),
         type: 'custom',
         position: { x: center.x, y: center.y, z: center.z },
         rotation: { x: 0, y: 0, z: 0 },
-        scale: { x: size.x, y: size.y, z: size.z }, // Store actual size for proper scaling
-        color: elementsToUnion[0].color,
-        material: elementsToUnion[0].material,
-        properties: { 
+        scale: { x: size.x, y: size.y, z: size.z },
+        color: primitiveElements[0].color,
+        material: primitiveElements[0].material,
+        properties: {
           unionOf: selectedElements.join(','),
-          csgGeometry: true, // Flag to indicate this uses CSG geometry
+          csgGeometry: true,
           geometryData: {
             positions: Array.from(positions),
             indices: indices ? Array.from(indices) : undefined
-          }
+          },
+          // Keep full source structure, for history/debug/audit
+          originalElements: JSON.stringify(elementsToUnion) // as plain data to avoid deep object cycles
         },
-        // Store the original elements
-        children: elementsToUnion
+        children: primitiveElements.map(e => ({ ...e }))
       };
 
-      // Remove original elements and add union
       setProject(prev => ({
         ...prev,
         elements: [
@@ -641,29 +651,26 @@ export function ArchitectureSimulator({
         updated_at: Date.now()
       }));
 
-      // Clear multi-selection and select the new union
       setSelectedElements([]);
       setSelectedElement(unionElement.id);
 
       toast({
         title: "Union Created",
-        description: `Successfully merged ${elementsToUnion.length} elements using CSG boolean union.`
+        description: `Successfully merged ${primitiveElements.length} primitives using CSG boolean union.`
       });
 
-      // Clean up
-      brushes.forEach(brush => {
-        brush.geometry.dispose();
-      });
+      brushes.forEach(brush => brush.geometry.dispose());
 
     } catch (error) {
       console.error('CSG Union creation failed:', error);
       toast({
-        title: "Union Failed", 
+        title: "Union Failed",
         description: "Could not create CSG union. Elements may have incompatible geometry or overlapping issues.",
         variant: "destructive"
       });
     }
   }, [selectedElements, project.elements, toast]);
+
 
   const handleElementAction = useCallback((action: 'delete' | 'copy' | 'reset') => {
     if (!selectedElement) return;
