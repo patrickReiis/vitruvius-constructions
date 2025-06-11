@@ -29,62 +29,36 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 // Helper function to check if two elements are touching (within tolerance)
 function areElementsTouching(element1: BuildingElement, element2: BuildingElement, tolerance = 0.01): boolean {
-  // Create 3D bounding boxes for each element
-  const box1 = new THREE.Box3();
-  const box2 = new THREE.Box3();
-  
-  // For element 1
-  const min1 = new THREE.Vector3(-element1.scale.x / 2, -element1.scale.y / 2, -element1.scale.z / 2);
-  const max1 = new THREE.Vector3(element1.scale.x / 2, element1.scale.y / 2, element1.scale.z / 2);
-  
-  // Apply rotation to corners of box1
-  const matrix1 = new THREE.Matrix4();
-  matrix1.makeRotationFromEuler(new THREE.Euler(element1.rotation.x, element1.rotation.y, element1.rotation.z));
-  matrix1.setPosition(element1.position.x, element1.position.y, element1.position.z);
-  
-  // Transform the box corners
-  const corners1 = [
-    new THREE.Vector3(min1.x, min1.y, min1.z),
-    new THREE.Vector3(max1.x, min1.y, min1.z),
-    new THREE.Vector3(min1.x, max1.y, min1.z),
-    new THREE.Vector3(max1.x, max1.y, min1.z),
-    new THREE.Vector3(min1.x, min1.y, max1.z),
-    new THREE.Vector3(max1.x, min1.y, max1.z),
-    new THREE.Vector3(min1.x, max1.y, max1.z),
-    new THREE.Vector3(max1.x, max1.y, max1.z),
-  ];
-  
-  corners1.forEach(corner => corner.applyMatrix4(matrix1));
-  box1.setFromPoints(corners1);
-  
-  // For element 2
-  const min2 = new THREE.Vector3(-element2.scale.x / 2, -element2.scale.y / 2, -element2.scale.z / 2);
-  const max2 = new THREE.Vector3(element2.scale.x / 2, element2.scale.y / 2, element2.scale.z / 2);
-  
-  const matrix2 = new THREE.Matrix4();
-  matrix2.makeRotationFromEuler(new THREE.Euler(element2.rotation.x, element2.rotation.y, element2.rotation.z));
-  matrix2.setPosition(element2.position.x, element2.position.y, element2.position.z);
-  
-  const corners2 = [
-    new THREE.Vector3(min2.x, min2.y, min2.z),
-    new THREE.Vector3(max2.x, min2.y, min2.z),
-    new THREE.Vector3(min2.x, max2.y, min2.z),
-    new THREE.Vector3(max2.x, max2.y, min2.z),
-    new THREE.Vector3(min2.x, min2.y, max2.z),
-    new THREE.Vector3(max2.x, min2.y, max2.z),
-    new THREE.Vector3(min2.x, max2.y, max2.z),
-    new THREE.Vector3(max2.x, max2.y, max2.z),
-  ];
-  
-  corners2.forEach(corner => corner.applyMatrix4(matrix2));
-  box2.setFromPoints(corners2);
-  
-  // Expand boxes by tolerance
-  box1.expandByScalar(tolerance);
-  
-  // Check if boxes intersect
+  // For accuracy, use true geometry-based bounding boxes for roofs (cones)
+  function getAccurateBox(el: BuildingElement): THREE.Box3 {
+    let mesh: THREE.Mesh;
+    if (el.type === 'roof') {
+      // Use ConeGeometry
+      const geometry = new THREE.ConeGeometry(1, 1, 4);
+      mesh = new THREE.Mesh(geometry);
+      mesh.scale.set(el.scale.x, el.scale.y, el.scale.z);
+      mesh.rotation.set(el.rotation.x, el.rotation.y, el.rotation.z);
+      mesh.position.set(el.position.x, el.position.y, el.position.z);
+    } else {
+      // For other, default to box using scale/rotation/position
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      mesh = new THREE.Mesh(geometry);
+      mesh.scale.set(el.scale.x, el.scale.y, el.scale.z);
+      mesh.rotation.set(el.rotation.x, el.rotation.y, el.rotation.z);
+      mesh.position.set(el.position.x, el.position.y, el.position.z);
+    }
+    mesh.updateMatrixWorld();
+    const box = new THREE.Box3().setFromObject(mesh);
+    // Expand by tolerance for numerical forgiveness
+    box.expandByScalar(tolerance);
+    return box;
+  }
+
+  const box1 = getAccurateBox(element1);
+  const box2 = getAccurateBox(element2);
   return box1.intersectsBox(box2);
 }
+
 
 // Helper function to check if all selected elements are touching each other
 function areAllElementsTouching(elements: BuildingElement[], tolerance = 0.01): boolean {
