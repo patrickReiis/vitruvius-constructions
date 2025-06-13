@@ -7,7 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Settings, Palette, Ruler, RotateCw, Combine, Group, Layers } from 'lucide-react';
+import { Settings, Palette, Ruler, RotateCw, Combine, Group, Layers, Minus } from 'lucide-react';
 import { BuildingElement } from '@/types/architecture';
 import * as THREE from 'three';
 
@@ -18,6 +18,7 @@ interface PropertiesPanelProps {
   onCreateGroup?: () => void;
   onCreateUnion?: () => void;
   onCreateIntersection?: () => void;
+  onCreateDifference?: () => void;
   elements?: BuildingElement[]; // Need this to check touching
 }
 
@@ -91,6 +92,7 @@ export function PropertiesPanel({
   onCreateGroup,
   onCreateUnion,
   onCreateIntersection,
+  onCreateDifference,
   elements = []
 }: PropertiesPanelProps) {
   const [localValues, setLocalValues] = useState<Partial<BuildingElement>>({});
@@ -150,12 +152,22 @@ export function PropertiesPanel({
               <Layers className="h-4 w-4" />
               Create Intersection
             </Button>
+
+            <Button
+              onClick={onCreateDifference}
+              className="w-full gap-2"
+              disabled={selectedElements.length !== 2 || !areTouching}
+            >
+              <Minus className="h-4 w-4" />
+              Create Difference (1st - 2nd)
+            </Button>
           </div>
           
           <div className="text-xs text-muted-foreground space-y-1">
             <div>• <strong>Group:</strong> Visual grouping of elements</div>
             <div>• <strong>Union:</strong> Geometric merge of touching objects</div>
             <div>• <strong>Intersection:</strong> Common overlapping volume of touching objects</div>
+            <div>• <strong>Difference:</strong> Subtract the second element from the first (only with 2 elements)</div>
           </div>
         </CardContent>
       </Card>

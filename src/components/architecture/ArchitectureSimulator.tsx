@@ -794,6 +794,181 @@ export function ArchitectureSimulator({
     }
   }, [selectedElements, project.elements, toast, flattenToPrimitives]);
 
+  const createDifference = useCallback(async () => {
+    if (selectedElements.length !== 2) return;
+
+    try {
+      // Get the selected elements (can include custom union/group)
+      const elementsToDiff = project.elements.filter(el => selectedElements.includes(el.id));
+
+      // Flatten all recursive children down to primitives
+      const firstElementPrimitives = flattenToPrimitives([elementsToDiff[0]]);
+      const secondElementPrimitives = flattenToPrimitives([elementsToDiff[1]]);
+      const allPrimitives = [...firstElementPrimitives, ...secondElementPrimitives];
+
+      // Check if elements are touching (difference requires overlapping geometry)
+      const areTouching = areAllElementsTouching(allPrimitives);
+      if (!areTouching) {
+        toast({
+          title: "Difference Failed",
+          description: "Elements must be touching or overlapping to create a difference.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Import CSG library dynamically
+      const { SUBTRACTION, Evaluator, Brush } = await import('three-bvh-csg');
+
+      // Helper function to create brush from element
+      const createBrush = (element: BuildingElement) => {
+        let geometry: THREE.BufferGeometry;
+
+        switch (element.type) {
+          case 'wall':
+          case 'floor':
+          case 'window':
+          case 'door':
+          case 'beam':
+          case 'stairs':
+            geometry = new THREE.BoxGeometry(1, 1, 1);
+            break;
+          case 'roof':
+            geometry = new THREE.ConeGeometry(1, 1, 4);
+            break;
+          case 'column':
+            geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
+            break;
+          default:
+            geometry = new THREE.BoxGeometry(1, 1, 1);
+        }
+
+        const brush = new Brush(geometry);
+        brush.scale.set(element.scale.x, element.scale.y, element.scale.z);
+        brush.rotation.set(element.rotation.x, element.rotation.y, element.rotation.z);
+        brush.position.set(element.position.x, element.position.y, element.position.z);
+        brush.updateMatrixWorld();
+        return brush;
+      };
+
+      // Create brushes for primitive operations
+      const firstBrushes = firstElementPrimitives.map(createBrush);
+      const secondBrushes = secondElementPrimitives.map(createBrush);
+
+      // Combine first element's primitives using union
+      const evaluator = new Evaluator();
+      let firstCombined = firstBrushes[0];
+      if (firstBrushes.length > 1) {
+        const { ADDITION } = await import('three-bvh-csg');
+        for (let i = 1; i < firstBrushes.length; i++) {
+          firstCombined = evaluator.evaluate(firstCombined, firstBrushes[i], ADDITION);
+        }
+      }
+
+      // Combine second element's primitives using union
+      let secondCombined = secondBrushes[0];
+      if (secondBrushes.length > 1) {
+        const { ADDITION } = await import('three-bvh-csg');
+        for (let i = 1; i < secondBrushes.length; i++) {
+          secondCombined = evaluator.evaluate(secondCombined, secondBrushes[i], ADDITION);
+        }
+      }
+
+      // Perform boolean difference (first - second)
+      const resultBrush = evaluator.evaluate(firstCombined, secondCombined, SUBTRACTION);
+
+      // Check if the difference result is valid (has volume)
+      if (!resultBrush.geometry || resultBrush.geometry.attributes.position.count === 0) {
+        toast({
+          title: "Difference Failed",
+          description: "The difference operation resulted in empty geometry. The second element may completely contain the first.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Get the difference geometry
+      const differenceGeometry = resultBrush.geometry.clone();
+      differenceGeometry.computeBoundingBox();
+      const boundingBox = differenceGeometry.boundingBox!;
+      const center = new THREE.Vector3();
+      const size = new THREE.Vector3();
+      boundingBox.getCenter(center);
+      boundingBox.getSize(size);
+
+      // Check if the resulting geometry has meaningful size
+      if (size.x < 0.01 || size.y < 0.01 || size.z < 0.01) {
+        toast({
+          title: "Difference Failed",
+          description: "The resulting geometry is too small or empty.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Store original center before normalization
+      const originalCenter = center.clone();
+
+      // Normalize the geometry (center it at origin)
+      differenceGeometry.translate(-center.x, -center.y, -center.z);
+      differenceGeometry.scale(1 / size.x, 1 / size.y, 1 / size.z);
+
+      const positions = differenceGeometry.attributes.position.array;
+      const indices = differenceGeometry.index?.array;
+
+      // New difference element
+      const differenceElement: BuildingElement = {
+        id: crypto.randomUUID(),
+        type: 'custom',
+        position: { x: originalCenter.x, y: originalCenter.y, z: originalCenter.z },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: size.x, y: size.y, z: size.z },
+        color: firstElementPrimitives[0].color,
+        material: firstElementPrimitives[0].material,
+        properties: {
+          differenceOf: selectedElements.join(','),
+          csgGeometry: true,
+          geometryData: {
+            positions: Array.from(positions),
+            indices: indices ? Array.from(indices) : undefined
+          },
+          // Keep full source structure
+          originalElements: JSON.stringify(elementsToDiff)
+        },
+        children: allPrimitives.map(e => ({ ...e }))
+      };
+
+      setProject(prev => ({
+        ...prev,
+        elements: [
+          ...prev.elements.filter(el => !selectedElements.includes(el.id)),
+          differenceElement
+        ],
+        updated_at: Date.now()
+      }));
+
+      setSelectedElements([]);
+      setSelectedElement(differenceElement.id);
+
+      toast({
+        title: "Difference Created",
+        description: `Successfully created difference (first - second) using CSG boolean operation.`
+      });
+
+      // Clean up
+      firstBrushes.forEach(brush => brush.geometry.dispose());
+      secondBrushes.forEach(brush => brush.geometry.dispose());
+
+    } catch (error) {
+      console.error('CSG Difference creation failed:', error);
+      toast({
+        title: "Difference Failed",
+        description: "Could not create CSG difference. Elements may have incompatible geometry.",
+        variant: "destructive"
+      });
+    }
+  }, [selectedElements, project.elements, toast, flattenToPrimitives]);
+
 
   const handleElementAction = useCallback((action: 'delete' | 'copy' | 'reset') => {
     if (!selectedElement) return;
@@ -1016,6 +1191,7 @@ export function ArchitectureSimulator({
                 onCreateGroup={createGroup}
                 onCreateUnion={createUnion}
                 onCreateIntersection={createIntersection}
+                onCreateDifference={createDifference}
                 elements={project.elements}
               />
             </div>
